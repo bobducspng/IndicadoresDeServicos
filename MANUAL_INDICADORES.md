@@ -1,8 +1,8 @@
 # Manual de Indicadores e Gráficos
 
 **Projeto:** Indicadores de Serviços  
-**Versão do manual:** 3.1
-**Atualizado em:** 15/09/2026
+**Versão do manual:** 3.2
+**Atualizado em:** 17/09/2026
 **Responsável:** Manus AI
 
 ## 1. Objetivo
@@ -80,6 +80,17 @@ O cálculo não soma CNPJs. Um cliente com vários CNPJs ou serviços é contado
 | Campos | `CNPJ`, `Cliente`, `Início`, `Fim`, `Situação` |
 | Granularidade | CNPJ único. |
 | Regra | Conta os CNPJs distintos nos registros de vigência que se sobrepõem ao período filtrado. |
+
+#### 5.2.1 Listas detalhadas dos KPIs
+
+Os cards **Clientes ativos** e **CNPJs em operação** possuem a ação **Ver lista**. A ação abre um painel sobreposto sem alterar os filtros globais nem recalcular um recorte diferente. O painel informa o período selecionado, o total visível e permite fechar pelo botão, pelo clique fora ou pela tecla `Esc`.
+
+| Lista | Fonte | Busca | Granularidade e conteúdo |
+|---|---|---|---|
+| Clientes ativos | Registros filtrados da aba `Vigência CNPJ x Serviço` | Nome do cliente, usando o campo `Cliente` | Uma linha visual por cliente único, com quantidade de serviços, quantidade de CNPJs, cidade/região e marca principal disponível. |
+| CNPJs em operação | Registros filtrados da aba `Vigência CNPJ x Serviço` | CNPJ, usando o campo `CNPJ` | Uma linha por CNPJ distinto, com cliente, serviços associados, início mais antigo, fim mais recente e localidade. |
+
+As duas listas herdam os filtros de **Segmento**, **Marca / clube**, **Serviços**, **Ano** e **Período**. Também respeitam a permissão de serviços do usuário autenticado: o painel é construído sobre o mesmo `activeRows` usado pelos KPIs, portanto não expõe registros fora do escopo autorizado. A lista de CNPJs consolida linhas repetidas do mesmo CNPJ e agrega seus serviços sem duplicação.
 
 ### 5.3 LTV médio, ou tempo médio de retenção
 
@@ -415,6 +426,7 @@ Para administradores autenticados, o menu lateral esquerdo exibe o botão **Cada
 | 2.6 | 11/09/2026 | Legibilidade dos gráficos: tooltip da `Linha do tempo` ampliado para exibir mês, contratados e cancelados com mais destaque; eixos, legendas, totais, percentuais, mapa e gráficos da visão por cliente receberam escala tipográfica revisada para desktop e mobile. |
 | 3.0 | 15/09/2026 | Painel administrativo convertido em página `Cadastro`, com edição de nome e serviços, busca, filtro por perfil, ordenação, cópia de e-mail, rolagem interna e redimensionamento manual das colunas. |
 | 3.1 | 15/09/2026 | Correção da regra da visão `Por Cliente`: serviços cuja data `Fim` foi atingida, inclusive no dia de referência, aparecem como `Encerrado`; `Operação Assistida` mantém seu status próprio e não vira cancelamento. |
+| 3.2 | 17/09/2026 | Cards `Clientes ativos` e `CNPJs em operação` passaram a oferecer listas detalhadas acionáveis, com busca contextual, contagem deduplicada, respeito aos filtros globais e às permissões de serviços. |
 
 ## Referências
 
