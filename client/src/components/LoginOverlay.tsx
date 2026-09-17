@@ -4,15 +4,30 @@ import { startLogin } from "@/const";
 
 const OFFICIAL_MARK = "/assets/menu-collapsed.png";
 
+function getAuthErrorMessage(code: string | null): string | null {
+  if (code === "unauthorized") {
+    return "Seu e-mail não está cadastrado ou está desativado. Fale com um administrador para solicitar a liberação.";
+  }
+  if (code === "configuration") {
+    return "O login Google ainda não está configurado no servidor. Fale com o administrador.";
+  }
+  if (code === "oauth_failed") {
+    return "Não foi possível concluir a autenticação Google. Tente novamente ou fale com o administrador.";
+  }
+  if (code === "cancelled") {
+    return "O login foi cancelado. Clique novamente para entrar com sua conta Google.";
+  }
+  return null;
+}
+
 export function LoginOverlay() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get("authError") === "unauthorized") {
-      setErrorMessage(
-        "Seu e-mail não está cadastrado para acessar esta ferramenta. Fale com o administrador para solicitar a liberação."
-      );
+    const message = getAuthErrorMessage(params.get("authError"));
+    if (message) {
+      setErrorMessage(message);
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -42,7 +57,7 @@ export function LoginOverlay() {
             <button
               type="button"
               className="google-sso-button"
-              onClick={() => startLogin()}
+              onClick={startLogin}
             >
               <svg className="google-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
                 <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.15z" />
@@ -55,7 +70,7 @@ export function LoginOverlay() {
           </div>
 
           <p className="login-helper-text">
-            Você será direcionado para a autenticação segura da sua conta Google.
+            Você será direcionado diretamente à autenticação segura do Google.
           </p>
 
           {errorMessage && (
@@ -71,7 +86,7 @@ export function LoginOverlay() {
 
         <div className="login-security-badge">
           <ShieldCheck size={14} className="security-shield-icon" />
-          <span>ACESSO SEGURO · INDICADORES DE SERVIÇOS</span>
+          <span>ACESSO SEGURO · GOOGLE OAUTH</span>
         </div>
       </div>
     </div>
