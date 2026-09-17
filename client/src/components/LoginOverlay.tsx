@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, Mail, MessageCircle, ShieldCheck } from "lucide-react";
+import { AlertCircle, Check, Copy, Mail, MessageCircle, ShieldCheck } from "lucide-react";
 import { startLogin } from "@/const";
 
 const OFFICIAL_MARK = "/assets/menu-collapsed.png";
 
 function getAuthErrorMessage(code: string | null): string | null {
   if (code === "unauthorized") {
-    return "Seu e-mail não está cadastrado ou está desativado. Clique em uma das opções para solicitar a liberação.";
+    return "Seu e-mail não está cadastrado ou está desativado. Escolha um dos canais abaixo para solicitar a liberação.";
   }
   if (code === "configuration") {
     return "O login Google ainda não está configurado no servidor. Fale com o administrador.";
@@ -22,6 +22,19 @@ function getAuthErrorMessage(code: string | null): string | null {
 
 export function LoginOverlay() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [copiedContact, setCopiedContact] = useState<"email" | "whatsapp" | null>(null);
+
+  const handleCopyContact = async (value: string, contact: "email" | "whatsapp") => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedContact(contact);
+      window.setTimeout(() => {
+        setCopiedContact((current) => (current === contact ? null : current));
+      }, 1800);
+    } catch {
+      setCopiedContact(null);
+    }
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -79,26 +92,61 @@ export function LoginOverlay() {
               <div className="login-error-text">
                 <strong>Acesso não liberado</strong>
                 <p>{errorMessage}</p>
-                <span className="login-contact-label">Solicite a liberação por:</span>
-                <div className="login-contact-actions" aria-label="Solicitar liberação de acesso">
-                  <a
-                    className="login-contact-link"
-                    href="mailto:ederlei.pereira@vena.app.br"
-                    aria-label="Solicitar liberação por e-mail para ederlei.pereira@vena.app.br"
-                    title="Enviar e-mail para o administrador"
-                  >
-                    <Mail size={16} aria-hidden="true" />
-                  </a>
-                  <a
-                    className="login-contact-link login-contact-whatsapp"
-                    href="https://wa.me/5541996646752"
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="Solicitar liberação pelo WhatsApp"
-                    title="Falar com o administrador pelo WhatsApp"
-                  >
-                    <MessageCircle size={16} aria-hidden="true" />
-                  </a>
+                <span className="login-contact-label">Canais para solicitar a liberação</span>
+                <div className="login-contact-grid" aria-label="Canais para solicitar liberação de acesso">
+                  <div className="login-contact-card">
+                    <a
+                      className="login-contact-main"
+                      href="mailto:ederlei.pereira@vena.app.br"
+                      aria-label="Enviar e-mail para ederlei.pereira@vena.app.br"
+                    >
+                      <span className="login-contact-icon login-contact-icon-email">
+                        <Mail size={16} aria-hidden="true" />
+                      </span>
+                      <span className="login-contact-copy">
+                        <span className="login-contact-name">E-mail</span>
+                        <span className="login-contact-value">ederlei.pereira@vena.app.br</span>
+                      </span>
+                    </a>
+                    <button
+                      type="button"
+                      className="login-copy-button"
+                      onClick={() => handleCopyContact("ederlei.pereira@vena.app.br", "email")}
+                      aria-label="Copiar e-mail do administrador"
+                      title="Copiar e-mail"
+                    >
+                      {copiedContact === "email" ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                      <span>{copiedContact === "email" ? "Copiado" : "Copiar"}</span>
+                    </button>
+                  </div>
+
+                  <div className="login-contact-card login-contact-card-whatsapp">
+                    <a
+                      className="login-contact-main"
+                      href="https://wa.me/5541996646752"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Abrir WhatsApp do administrador"
+                    >
+                      <span className="login-contact-icon login-contact-icon-whatsapp">
+                        <MessageCircle size={16} aria-hidden="true" />
+                      </span>
+                      <span className="login-contact-copy">
+                        <span className="login-contact-name">WhatsApp</span>
+                        <span className="login-contact-value">+55 (41) 99664-6752</span>
+                      </span>
+                    </a>
+                    <button
+                      type="button"
+                      className="login-copy-button login-copy-button-whatsapp"
+                      onClick={() => handleCopyContact("+55 (41) 99664-6752", "whatsapp")}
+                      aria-label="Copiar telefone do administrador"
+                      title="Copiar telefone"
+                    >
+                      {copiedContact === "whatsapp" ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                      <span>{copiedContact === "whatsapp" ? "Copiado" : "Copiar"}</span>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
