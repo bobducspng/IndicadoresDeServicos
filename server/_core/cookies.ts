@@ -42,7 +42,9 @@ export function getSessionCookieOptions(
   return {
     httpOnly: true,
     path: "/",
-    sameSite: "none",
+    // O callback Google retorna para o mesmo host da aplicação; Lax protege
+    // contra CSRF e funciona tanto no domínio HTTPS quanto em localhost.
+    sameSite: "lax",
     secure: isSecureRequest(req),
   };
 }
