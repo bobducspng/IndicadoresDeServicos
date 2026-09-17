@@ -27,6 +27,18 @@ export interface ClientMovement {
   club: string;
 }
 
+export interface ActiveCnpjRow {
+  cnpj: string;
+  client: string;
+  services: string[];
+  startDate: string;
+  endDate: string;
+  region: string;
+  city: string;
+  state: string;
+  brand: string;
+}
+
 export interface TimelinePoint {
   key: string;
   label: string;
@@ -800,4 +812,35 @@ export function formatPeriodDate(value: string): string {
   if (!value) return "—";
   const [year, month] = value.split("-");
   return year && month ? `${month}/${year}` : value;
+}
+
+export function buildActiveCnpjRows(rows: SheetRow[]): ActiveCnpjRow[] {
+  const grouped = new Map<string, ActiveCnpjRow>();
+  rows.forEach((row) => {
+    const cnpj = asText(row["CNPJ"]);
+    if (!cnpj) return;
+    const key = normalize(cnpj);
+    const current = grouped.get(key);
+    const service = asText(row["Serviço"]);
+    const startDate = toDateInput(row["Início"]);
+    const endDate = toDateInput(row["Fim"]);
+    if (!current) {
+      grouped.set(key, {
+        cnpj,
+        client: asText(row["Cliente"]) || "Cliente não informado",
+        services: service ? [service] : [],
+        startDate,
+        endDate,
+        region: asText(row["Região"]) || "—",
+        city: asText(row["Cidade"]) || "—",
+        state: asText(row["Estado"]) || "—",
+        brand: asText(row["Marca"]) || asText(row["Clube"]) || "—",
+      });
+      return;
+    }
+    if (service && !current.services.some((item) => normalize(item) === normalize(service))) current.services.push(service);
+    if (startDate && (!current.startDate || startDate < current.startDate)) current.startDate = startDate;
+    if (endDate && (!current.endDate || endDate > current.endDate)) current.endDate = endDate;
+  });
+  return Array.from(grouped.values()).sort((a, b) => a.client.localeCompare(b.client, "pt-BR") || a.cnpj.localeCompare(b.cnpj, "pt-BR"));
 }
