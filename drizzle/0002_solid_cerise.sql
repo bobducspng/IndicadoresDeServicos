@@ -1,0 +1,1 @@
+ALTER TABLE `allowed_users` ADD `isActive` int DEFAULT 1 NOT NULL;

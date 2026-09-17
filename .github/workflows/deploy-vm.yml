@@ -1,0 +1,90 @@
+name: Deploy na VM Oracle
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-vm-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Publicar na VM Oracle
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      - name: Preparar acesso SSH
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_PORT: ${{ secrets.VM_PORT }}
+          VM_USER: ${{ secrets.VM_USER }}
+          VM_SSH_KEY: ${{ secrets.VM_SSH_KEY }}
+          VM_KNOWN_HOSTS: ${{ secrets.VM_KNOWN_HOSTS }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$VM_HOST"
+          test -n "$VM_USER"
+          test -n "$VM_SSH_KEY"
+          test -n "$VM_KNOWN_HOSTS"
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$VM_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$VM_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/id_ed25519" "$HOME/.ssh/known_hosts"
+          SSH_PORT="${VM_PORT:-22}"
+          ssh -p "$SSH_PORT" -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes "$VM_USER@$VM_HOST" 'echo SSH conectado'
+
+      - name: Sincronizar os arquivos com a VM
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_PORT: ${{ secrets.VM_PORT }}
+          VM_USER: ${{ secrets.VM_USER }}
+          VM_APP_PATH: ${{ secrets.VM_APP_PATH }}
+        run: |
+          set -Eeuo pipefail
+          test -n "$VM_APP_PATH"
+          SSH_PORT="${VM_PORT:-22}"
+          SSH_OPTS=(-p "$SSH_PORT" -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes)
+          ssh "${SSH_OPTS[@]}" "$VM_USER@$VM_HOST" "mkdir -p '$VM_APP_PATH'"
+          rsync -az --delete \
+            --exclude='.env' \
+            --exclude='node_modules/' \
+            --exclude='dist/' \
+            --exclude='.git/' \
+            --exclude='.manus-logs/' \
+            -e "ssh ${SSH_OPTS[*]}" \
+            ./ "$VM_USER@$VM_HOST:$VM_APP_PATH/"
+
+      - name: Instalar, validar, gerar build e reiniciar
+        env:
+          VM_HOST: ${{ secrets.VM_HOST }}
+          VM_PORT: ${{ secrets.VM_PORT }}
+          VM_USER: ${{ secrets.VM_USER }}
+          VM_APP_PATH: ${{ secrets.VM_APP_PATH }}
+        run: |
+          set -Eeuo pipefail
+          SSH_PORT="${VM_PORT:-22}"
+          ssh -p "$SSH_PORT" -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes "$VM_USER@$VM_HOST" "bash -s -- '$VM_APP_PATH'" <<'REMOTE_SCRIPT'
+          set -Eeuo pipefail
+          APP_PATH="$1"
+          cd "$APP_PATH"
+          pnpm install --frozen-lockfile
+          pnpm check
+          pnpm test
+          pnpm build
+          sudo -n systemctl restart indicadores-servicos.service
+          sleep 2
+          sudo -n systemctl is-active --quiet indicadores-servicos.service
+          curl --fail --silent --show-error --max-time 20 http://127.0.0.1:3000/ >/dev/null
+          echo "Deploy concluído em $APP_PATH"
+          REMOTE_SCRIPT
