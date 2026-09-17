@@ -79,6 +79,7 @@ export function LoginOverlay() {
               <div className="login-error-text">
                 <strong>Acesso não liberado</strong>
                 <p>{errorMessage}</p>
+                <span className="login-contact-label">Solicite a liberação por:</span>
                 <div className="login-contact-actions" aria-label="Solicitar liberação de acesso">
                   <a
                     className="login-contact-link"
