@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { AlertCircle, ShieldCheck } from "lucide-react";
 import { startLogin } from "@/const";
 
-const OFFICIAL_MARK = "/manus-storage/menu-collapsed_962cea64.png";
+const OFFICIAL_MARK = "/assets/menu-collapsed.png";
 
 export function LoginOverlay() {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
