@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, ShieldCheck } from "lucide-react";
+import { AlertCircle, Mail, MessageCircle, ShieldCheck } from "lucide-react";
 import { startLogin } from "@/const";
 
 const OFFICIAL_MARK = "/assets/menu-collapsed.png";
 
 function getAuthErrorMessage(code: string | null): string | null {
   if (code === "unauthorized") {
-    return "Seu e-mail não está cadastrado ou está desativado. Fale com um administrador para solicitar a liberação.";
+    return "Seu e-mail não está cadastrado ou está desativado. Clique em uma das opções para solicitar a liberação.";
   }
   if (code === "configuration") {
     return "O login Google ainda não está configurado no servidor. Fale com o administrador.";
@@ -79,6 +79,26 @@ export function LoginOverlay() {
               <div className="login-error-text">
                 <strong>Acesso não liberado</strong>
                 <p>{errorMessage}</p>
+                <div className="login-contact-actions" aria-label="Solicitar liberação de acesso">
+                  <a
+                    className="login-contact-link"
+                    href="mailto:ederlei.pereira@vena.app.br"
+                    aria-label="Solicitar liberação por e-mail para ederlei.pereira@vena.app.br"
+                    title="Enviar e-mail para o administrador"
+                  >
+                    <Mail size={16} aria-hidden="true" />
+                  </a>
+                  <a
+                    className="login-contact-link login-contact-whatsapp"
+                    href="https://wa.me/5541996646752"
+                    target="_blank"
+                    rel="noreferrer"
+                    aria-label="Solicitar liberação pelo WhatsApp"
+                    title="Falar com o administrador pelo WhatsApp"
+                  >
+                    <MessageCircle size={16} aria-hidden="true" />
+                  </a>
+                </div>
               </div>
             </div>
           )}
