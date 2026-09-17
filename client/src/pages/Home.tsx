@@ -17,6 +17,7 @@ import {
   Menu,
   Moon,
   RefreshCw,
+  Search,
   Settings2,
   Store,
   Sun,
@@ -37,6 +38,7 @@ import {
   DEFAULT_FILTERS,
   PERIOD_OPTIONS,
   asText,
+  buildActiveCnpjRows,
   buildClientOptions,
   buildFilterOptions,
   deriveClientDetail,
@@ -46,6 +48,7 @@ import {
   formatNumber,
   formatPeriodDate,
   normalize,
+  type ActiveCnpjRow,
   type DashboardSnapshot,
   type ClientDetail,
   type DashboardView,
@@ -306,8 +309,56 @@ function FilterBar({ filters, setFilters, options, onClear }: { filters: FilterS
   );
 }
 
-function KpiCard({ icon: Icon, label, value, detail, tone, trend, trendPositive }: { icon: typeof Activity; label: string; value: string; detail: string; tone: Tone; trend?: string; trendPositive?: boolean }) {
-  return <article className="kpi-card"><div className={`kpi-icon kpi-icon-${tone}`}><Icon size={17} /></div><div className="kpi-label">{label}</div><div className="kpi-value-row"><strong>{value}</strong>{trend && <span className={`kpi-trend ${trendPositive === false ? "kpi-trend-negative" : `kpi-trend-${tone}`}`}>{trendPositive === false ? <TrendingDown size={12} /> : <TrendingUp size={12} />}{trend}</span>}</div><div className="kpi-detail">{detail}</div></article>;
+function KpiCard({ icon: Icon, label, value, detail, tone, trend, trendPositive, onViewList }: { icon: typeof Activity; label: string; value: string; detail: string; tone: Tone; trend?: string; trendPositive?: boolean; onViewList?: () => void }) {
+  return <article className={`kpi-card ${onViewList ? "kpi-card-actionable" : ""}`}>
+    <div className="kpi-card-topline"><div className={`kpi-icon kpi-icon-${tone}`}><Icon size={17} /></div>{onViewList && <button type="button" className="kpi-list-button" onClick={onViewList}><Search size={12} /> Ver lista</button>}</div>
+    <div className="kpi-label">{label}</div>
+    <div className="kpi-value-row"><strong>{value}</strong>{trend && <span className={`kpi-trend ${trendPositive === false ? "kpi-trend-negative" : `kpi-trend-${tone}`}`}>{trendPositive === false ? <TrendingDown size={12} /> : <TrendingUp size={12} />}{trend}</span>}</div>
+    <div className="kpi-detail">{detail}</div>
+  </article>;
+}
+
+type ListDialogKind = "clients" | "cnpjs";
+
+function ActiveListDialog({ kind, snapshot, onClose }: { kind: ListDialogKind; snapshot: DashboardSnapshot; onClose: () => void }) {
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const cnpjRows = useMemo(() => buildActiveCnpjRows(snapshot.activeRows), [snapshot.activeRows]);
+  const normalizedQuery = normalize(query);
+  const clientRows = snapshot.clientRows.filter((row) => !normalizedQuery || normalize(row.client).includes(normalizedQuery));
+  const filteredCnpjRows = cnpjRows.filter((row) => !normalizedQuery || normalize(row.cnpj).includes(normalizedQuery));
+  const isClients = kind === "clients";
+  const total = isClients ? snapshot.clientRows.length : cnpjRows.length;
+  const visibleCount = isClients ? clientRows.length : filteredCnpjRows.length;
+
+  useEffect(() => {
+    searchRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return <div className="list-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+    <section className="list-dialog" role="dialog" aria-modal="true" aria-labelledby="active-list-title">
+      <header className="list-dialog-header">
+        <div className="list-dialog-heading"><div className={`list-dialog-icon ${isClients ? "list-dialog-icon-blue" : "list-dialog-icon-teal"}`}>{isClients ? <Users size={17} /> : <Building2 size={17} />}</div><div><div className="panel-eyebrow">LISTA FILTRADA · {snapshot.period.label.toUpperCase()}</div><h2 id="active-list-title">{isClients ? "Clientes ativos" : "CNPJs em operação"}</h2><p>{isClients ? "Clientes únicos vigentes no recorte selecionado." : "CNPJs distintos vinculados à carteira ativa."}</p></div></div>
+        <button type="button" className="list-dialog-close" onClick={onClose} aria-label="Fechar lista"><X size={17} /></button>
+      </header>
+      <div className="list-dialog-toolbar"><label className="list-dialog-search"><Search size={15} /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={isClients ? "Buscar cliente por nome..." : "Buscar por CNPJ..."} aria-label={isClients ? "Buscar cliente por nome" : "Buscar por CNPJ"} />{query && <button type="button" onClick={() => setQuery("")} aria-label="Limpar busca"><X size={13} /></button>}</label><span className="list-dialog-count">{formatNumber(visibleCount)} de {formatNumber(total)}</span></div>
+      <div className="list-dialog-body">
+        {isClients ? <div className="active-list-grid active-client-list">{clientRows.map((row) => <article className="active-list-card" key={row.client}><div className="active-list-card-title"><span className="client-avatar">{initials(row.client)}</span><div><strong title={row.client}>{row.client}</strong><small>{row.city} · {row.region}</small></div></div><div className="active-list-card-meta"><span><b>{formatNumber(row.services)}</b> serviços</span><span><b>{formatNumber(row.cnpjs)}</b> CNPJs</span><span className="active-list-brand" title={row.brand}>{row.brand}</span></div></article>)}</div> : <div className="active-list-table-wrap"><table className="active-list-table"><thead><tr><th>CNPJ</th><th>Cliente</th><th>Serviços</th><th>Início</th><th>Fim</th><th>Local</th></tr></thead><tbody>{filteredCnpjRows.map((row: ActiveCnpjRow) => <tr key={row.cnpj}><td><strong className="cnpj-value">{row.cnpj}</strong></td><td><strong>{row.client}</strong></td><td><span className="service-chip-list" title={row.services.join(", ")}>{row.services.length ? row.services.join(" · ") : "—"}</span></td><td>{row.startDate ? formatDate(row.startDate) : "—"}</td><td>{row.endDate ? formatDate(row.endDate) : "Em aberto"}</td><td>{row.city}{row.state !== "—" ? ` · ${row.state}` : ""}</td></tr>)}</tbody></table></div>}
+        {!visibleCount && <div className="empty-state list-dialog-empty"><Search size={20} /><strong>Nenhum resultado encontrado</strong><span>Altere o termo de busca ou revise os filtros globais.</span></div>}
+      </div>
+      <footer className="list-dialog-footer"><span>Filtros aplicados: <strong>{snapshot.period.label}</strong></span><button type="button" className="btn-modal-close" onClick={onClose}>Fechar</button></footer>
+    </section>
+  </div>;
 }
 
 function Panel({ title, eyebrow, icon: Icon, children, className = "" }: { title: string; eyebrow?: string; icon?: typeof Activity; children: ReactNode; className?: string }) {
@@ -389,12 +440,15 @@ function DataTable({ rows }: { rows: DashboardSnapshot["clientRows"] }) {
 
 function GeneralPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const growth = snapshot.kpis.clientsYoYPercent;
+  const [listKind, setListKind] = useState<ListDialogKind | null>(null);
+  const closeList = useCallback(() => setListKind(null), []);
   return <>
     <div className="page-heading"><div><div className="page-eyebrow"><span className="status-dot status-dot-live" /> Visão consolidada</div><h1>Indicadores gerais</h1><p>Movimentação, retenção e distribuição da carteira por cliente.</p></div><div className="page-heading-meta"><span>{snapshot.period.label}</span><span className="heading-meta-divider" /><span>{formatPeriodDate(snapshot.period.startDate)} — {formatDate(snapshot.period.endDate)}</span></div></div>
-    <div className="kpi-grid"><KpiCard icon={Users} label="Clientes ativos" value={formatNumber(snapshot.kpis.clients)} detail="clientes únicos com vigência no recorte" tone="blue" trend={growth === null ? undefined : `${growth >= 0 ? "+" : ""}${growth.toFixed(1).replace(".", ",")}%`} trendPositive={growth === null ? undefined : growth >= 0} /><KpiCard icon={Building2} label="CNPJs em operação" value={formatNumber(snapshot.kpis.cnpjs)} detail="cadastros vinculados aos clientes" tone="teal" /><KpiCard icon={Activity} label="LTV médio (retenção)" value={`${snapshot.kpis.ltvYears.toFixed(1).replace(".", ",")} anos`} detail="tempo médio de serviço ativo" tone="violet" /><KpiCard icon={Store} label="Universo O Boticário" value={`${snapshot.kpis.boticarioShare.toFixed(1).replace(".", ",")}%`} detail={`${formatNumber(snapshot.kpis.boticarioClients)} Boticário · ${formatNumber(snapshot.kpis.otherBrandClients)} outras marcas`} tone="boticario" trend={`${formatNumber(snapshot.kpis.boticarioClients)} clientes`} /></div>
+    <div className="kpi-grid"><KpiCard icon={Users} label="Clientes ativos" value={formatNumber(snapshot.kpis.clients)} detail="clientes únicos com vigência no recorte" tone="blue" trend={growth === null ? undefined : `${growth >= 0 ? "+" : ""}${growth.toFixed(1).replace(".", ",")}%`} trendPositive={growth === null ? undefined : growth >= 0} onViewList={() => setListKind("clients")} /><KpiCard icon={Building2} label="CNPJs em operação" value={formatNumber(snapshot.kpis.cnpjs)} detail="cadastros vinculados aos clientes" tone="teal" onViewList={() => setListKind("cnpjs")} /><KpiCard icon={Activity} label="LTV médio (retenção)" value={`${snapshot.kpis.ltvYears.toFixed(1).replace(".", ",")} anos`} detail="tempo médio de serviço ativo" tone="violet" /><KpiCard icon={Store} label="Universo O Boticário" value={`${snapshot.kpis.boticarioShare.toFixed(1).replace(".", ",")}%`} detail={`${formatNumber(snapshot.kpis.boticarioClients)} Boticário · ${formatNumber(snapshot.kpis.otherBrandClients)} outras marcas`} tone="boticario" trend={`${formatNumber(snapshot.kpis.boticarioClients)} clientes`} /></div>
     <div className="content-grid content-grid-top"><Panel title={`Clientes novos · ${formatNumber(snapshot.newClients.length)} no período`} icon={Users} className="movement-panel"><MovementList title="Clientes novos" items={snapshot.newClients} tone="positive" /></Panel><Panel title={`Clientes cancelados · ${formatNumber(snapshot.cancelledClients.length)} no período`} icon={CircleAlert} className="movement-panel"><MovementList title="Clientes cancelados" items={snapshot.cancelledClients} tone="negative" /></Panel><Panel title="Linha do tempo" icon={Activity} className="timeline-panel"><TimelineChart series={snapshot.timeline} /></Panel></div>
     <div className="content-grid content-grid-three"><Panel title="Distribuição por serviço" eyebrow="SERVIÇOS · CLIENTES ÚNICOS" icon={Layers3}><ServiceBars items={snapshot.serviceBreakdown} total={snapshot.serviceTotal} /></Panel><Panel title="Clientes × serviços" eyebrow="CLIENTES ÚNICOS · PARTICIPAÇÃO" icon={BarChart3}><ClientServiceBars items={snapshot.clientServiceBreakdown} /></Panel><Panel title="Mix por clube" eyebrow="CLIENTES ÚNICOS · PARTICIPAÇÃO" icon={Target}><ClubBreakdown items={snapshot.clubBreakdown} /></Panel></div>
     <div className="content-grid content-grid-map"><Panel title="Mapa dos serviços oferecidos" eyebrow="CLIENTES ATIVOS POR ESTADO" icon={MapIcon} className="panel-map"><BrazilMap snapshot={snapshot} /></Panel><Panel title="Clientes em foco" eyebrow="MAIOR CONCENTRAÇÃO DE SERVIÇOS" icon={Users} className="panel-table"><DataTable rows={snapshot.clientRows} /></Panel></div>
+    {listKind && <ActiveListDialog kind={listKind} snapshot={snapshot} onClose={closeList} />}
   </>;
 }
 
