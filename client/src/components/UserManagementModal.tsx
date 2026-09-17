@@ -821,6 +821,17 @@ export function UserManagementModal({
                                 ) : (
                                   <span className="badge-no-services">Nenhum</span>
                                 )}
+                                <button
+                                  type="button"
+                                  className="btn-services-edit"
+                                  onClick={() => handleStartServicesEdit(u.id, u.allowedServices === null ? availableServices : (u.allowedServicesList || []))}
+                                  title="Editar serviços permitidos"
+                                  aria-label={`Editar serviços permitidos de ${u.email}`}
+                                  disabled={editingServicesUserId === u.id || updateServicesMutation.isPending}
+                                >
+                                  <Pencil size={12} />
+                                  <span>Editar</span>
+                                </button>
                               </div>
                             )}
                           </td>
@@ -834,18 +845,6 @@ export function UserManagementModal({
                             <span>{u.addedBy || "sistema"}</span>
                           </td>
                           <td data-label="Ações" className="td-actions">
-                            {u.role !== "admin" && (
-                              <button
-                                type="button"
-                                className="btn-edit-services"
-                                onClick={() => handleStartServicesEdit(u.id, u.allowedServices === null ? availableServices : (u.allowedServicesList || []))}
-                                title="Configurar serviços permitidos"
-                                aria-label={`Configurar serviços de ${u.email}`}
-                                disabled={editingServicesUserId === u.id || updateServicesMutation.isPending}
-                              >
-                                <Shield size={14} />
-                              </button>
-                            )}
                             <button
                               type="button"
                               className="btn-edit-user"
