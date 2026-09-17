@@ -3033,8 +3033,24 @@
 .login-contact-actions {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
+  width: 100%;
   margin-top: 10px;
+}
+
+.login-error-text {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.login-contact-label {
+  display: block;
+  margin-top: 10px;
+  color: rgba(254, 202, 202, 0.78);
+  font-size: 10px;
+  line-height: 1.3;
+  text-align: center;
 }
 
 .login-contact-link {
