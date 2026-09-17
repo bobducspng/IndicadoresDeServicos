@@ -57,8 +57,8 @@ import {
   type PeriodPreset,
 } from "@/lib/dashboard";
 
-const EXPANDED_MARK = "/manus-storage/menu-expanded_4134ee4e.png";
-const COLLAPSED_MARK = "/manus-storage/menu-collapsed_962cea64.png";
+const EXPANDED_MARK = "/assets/menu-expanded.png";
+const COLLAPSED_MARK = "/assets/menu-collapsed.png";
 
 type Tone = "blue" | "teal" | "amber" | "violet" | "boticario";
 
