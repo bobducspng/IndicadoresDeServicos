@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveClientDetail } from "../client/src/lib/dashboard";
+import { buildActiveCnpjRows, deriveClientDetail } from "../client/src/lib/dashboard";
 import type { DashboardSheets } from "../client/src/lib/sheets";
 
 function sheetsFrom(rows: Array<Record<string, string>>): DashboardSheets {
@@ -58,5 +58,19 @@ describe("deriveClientDetail", () => {
     ]), "Cliente Teste");
 
     expect(detail?.serviceHistory.some((item) => item.status === "Ativo")).toBe(true);
+  });
+});
+
+describe("buildActiveCnpjRows", () => {
+  it("deduplica o CNPJ e consolida os serviços associados", () => {
+    const rows = buildActiveCnpjRows([
+      { CNPJ: "12.345.678/0001-90", Cliente: "Cliente A", Serviço: "Contabilidade", Início: "2024-01-10", Fim: "", Cidade: "Muriaé", Estado: "MG" },
+      { CNPJ: "12.345.678/0001-90", Cliente: "Cliente A", Serviço: "BPO Gerencial", Início: "2023-02-01", Fim: "2025-12-31", Cidade: "Muriaé", Estado: "MG" },
+      { CNPJ: "98.765.432/0001-10", Cliente: "Cliente B", Serviço: "BPO Suprimentos", Início: "2025-03-01", Fim: "", Cidade: "São Paulo", Estado: "SP" },
+    ]);
+
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toMatchObject({ cnpj: "12.345.678/0001-90", client: "Cliente A", startDate: "2023-02-01", endDate: "2025-12-31" });
+    expect(rows[0]?.services).toEqual(["Contabilidade", "BPO Gerencial"]);
   });
 });
