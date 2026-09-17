@@ -130,7 +130,7 @@ function createMockContext(user?: TrpcContext["user"]): {
       headers: {},
     } as TrpcContext["req"],
     res: {
-      clearCookie: (name: string, options: Record<string, unknown> ) => {
+      clearCookie: (name: string, options: Record<string, unknown>) => {
         clearedCookies.push({ name, options });
       },
     } as unknown as TrpcContext["res"],
@@ -141,7 +141,7 @@ function createMockContext(user?: TrpcContext["user"]): {
 
 const adminUser = {
   id: 1,
-  openId: "sample-admin",
+      openId: "google:sample-admin",
   email: "ederlei.pereira@vena.app.br",
   name: "Ederlei Pereira",
   loginMethod: "google",
