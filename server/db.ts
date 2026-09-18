@@ -1,4 +1,4 @@
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { allowedUsers, users, type AllowedUser, type InsertAllowedUser, type InsertUser, type User } from "../drizzle/schema";
 import { ENV } from "./_core/env";
@@ -191,9 +191,9 @@ export async function removeAllowedUser(id: number): Promise<boolean> {
   const user = await db.select().from(allowedUsers).where(eq(allowedUsers.id, id)).limit(1);
   if (!user.length) return false;
 
-  if (user[0].role === "admin") {
-    const admins = await db.select().from(allowedUsers).where(eq(allowedUsers.role, "admin"));
-    if (admins.length <= 1) {
+  if (user[0].role === "admin" || user[0].role === "super_admin") {
+    const privilegedUsers = await db.select().from(allowedUsers).where(inArray(allowedUsers.role, ["admin", "super_admin"]));
+    if (privilegedUsers.length <= 1) {
       throw new Error("Não é possível remover o único administrador do sistema.");
     }
   }
@@ -208,9 +208,9 @@ export async function updateAllowedUserRole(id: number, role: "admin" | "super_a
 
   if (role === "user") {
     const current = await db.select().from(allowedUsers).where(eq(allowedUsers.id, id)).limit(1);
-    if (current.length && current[0].role === "admin") {
-      const admins = await db.select().from(allowedUsers).where(eq(allowedUsers.role, "admin"));
-      if (admins.length <= 1) {
+    if (current.length && (current[0].role === "admin" || current[0].role === "super_admin")) {
+      const privilegedUsers = await db.select().from(allowedUsers).where(inArray(allowedUsers.role, ["admin", "super_admin"]));
+      if (privilegedUsers.length <= 1) {
         throw new Error("O sistema precisa manter pelo menos um administrador.");
       }
     }
