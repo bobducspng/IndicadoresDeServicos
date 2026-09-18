@@ -54,6 +54,30 @@ const defaultColumnWidths: Record<UserTableColumn, number> = {
   actions: 8,
 };
 
+function formatAccessError(error: unknown, fallback: string): string {
+  const raw = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  let message = raw;
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      const firstMessage = parsed.find(
+        (item): item is { message: string } =>
+          typeof item === "object" && item !== null && "message" in item && typeof item.message === "string",
+      )?.message;
+      if (firstMessage) message = firstMessage;
+    }
+  } catch {
+    // Mensagens normais não precisam de desserialização.
+  }
+
+  if (message.toLocaleLowerCase("pt-BR").includes("vena.app.br")) {
+    return "E-mail não permitido. Cadastre somente endereços do domínio @vena.app.br.";
+  }
+
+  return message && !message.trim().startsWith("[") ? message : fallback;
+}
+
 const minimumColumnWidths: Record<UserTableColumn, number> = {
   name: 15,
   email: 16,
@@ -165,7 +189,7 @@ export function UserManagementModal({
       utils.accessControl.list.invalidate();
     },
     onError: (err) => {
-      setFormError(err.message || "Erro ao adicionar usuário");
+      setFormError(formatAccessError(err, "Não foi possível cadastrar este e-mail."));
     },
   });
 
@@ -560,9 +584,16 @@ export function UserManagementModal({
                   required
                   placeholder="exemplo@vena.app.br"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="mgmt-input"
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (formError) setFormError(null);
+                  }}
+                  className={`mgmt-input ${formError?.toLocaleLowerCase("pt-BR").includes("domínio @vena.app.br") ? "mgmt-input-error" : ""}`}
+                  aria-invalid={formError?.toLocaleLowerCase("pt-BR").includes("domínio @vena.app.br") || undefined}
                 />
+                {formError?.toLocaleLowerCase("pt-BR").includes("domínio @vena.app.br") && (
+                  <small className="mgmt-field-hint mgmt-field-hint-error">Use um e-mail terminado em @vena.app.br.</small>
+                )}
               </div>
 
               <div className="form-group">
@@ -591,7 +622,7 @@ export function UserManagementModal({
             )}
 
             {formError && (
-              <div className="mgmt-alert mgmt-alert-error">
+              <div className="mgmt-alert mgmt-alert-error" role="alert" aria-live="assertive">
                 <AlertCircle size={15} />
                 <span>{formError}</span>
               </div>
