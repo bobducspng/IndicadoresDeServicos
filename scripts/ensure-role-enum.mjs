@@ -1,4 +1,7 @@
+import { config } from "dotenv";
 import mysql from "mysql2/promise";
+
+config({ path: process.env.APP_ENV_FILE ?? ".env" });
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
