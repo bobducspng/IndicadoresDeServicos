@@ -1,7 +1,7 @@
 import type { DashboardSheets, SheetRow } from "./sheets";
 
 export type DashboardView = "general" | "client" | "access";
-export type PeriodPreset = "year" | "last6" | "month" | "semester1" | "semester2" | "quarter1" | "quarter2" | "quarter3" | "quarter4";
+export type PeriodPreset = "year" | "last6" | "month" | "previousMonth" | "semester1" | "semester2" | "quarter1" | "quarter2" | "quarter3" | "quarter4";
 
 export interface FilterState {
   regions: string[];
@@ -140,6 +140,7 @@ const PERIOD_LABELS: Record<PeriodPreset, string> = {
   year: "Ano",
   last6: "Últimos 6 meses",
   month: "Mês atual",
+  previousMonth: "Mês anterior",
   semester1: "1º Semestre",
   semester2: "2º Semestre",
   quarter1: "1º Trimestre",
@@ -152,6 +153,7 @@ export const PERIOD_OPTIONS: Array<{ value: PeriodPreset; label: string }> = [
   { value: "year", label: PERIOD_LABELS.year },
   { value: "last6", label: PERIOD_LABELS.last6 },
   { value: "month", label: PERIOD_LABELS.month },
+  { value: "previousMonth", label: PERIOD_LABELS.previousMonth },
   { value: "semester1", label: PERIOD_LABELS.semester1 },
   { value: "semester2", label: PERIOD_LABELS.semester2 },
   { value: "quarter1", label: PERIOD_LABELS.quarter1 },
@@ -269,6 +271,7 @@ function periodRange(latestDate: Date, preset: PeriodPreset): { start: Date; end
   if (preset === "year") return { start: new Date(Date.UTC(year, 0, 1)), end: new Date(Date.UTC(year, 11, 31, 23, 59, 59)), label: PERIOD_LABELS[preset] };
   if (preset === "last6") return { start: new Date(Date.UTC(year, month - 5, 1)), end, label: PERIOD_LABELS[preset] };
   if (preset === "month") return { start: new Date(Date.UTC(year, month, 1)), end, label: PERIOD_LABELS[preset] };
+  if (preset === "previousMonth") return { start: new Date(Date.UTC(year, month - 1, 1)), end: new Date(Date.UTC(year, month, 0, 23, 59, 59)), label: PERIOD_LABELS[preset] };
   if (preset === "semester1") return { start: new Date(Date.UTC(year, 0, 1)), end: new Date(Date.UTC(year, 5, 30, 23, 59, 59)), label: PERIOD_LABELS[preset] };
   if (preset === "semester2") return { start: new Date(Date.UTC(year, 6, 1)), end: new Date(Date.UTC(year, 11, 31, 23, 59, 59)), label: PERIOD_LABELS[preset] };
   const quarter = Number(preset.replace("quarter", "")) - 1;
