@@ -147,7 +147,7 @@ function Sidebar({ collapsed, setCollapsed, view, setView, mobileOpen, onCloseMo
       <nav className="sidebar-nav" aria-label="Navegação principal">
         <button className={`nav-item ${view === "general" ? "nav-item-active" : ""}`} onClick={() => goTo("general")} title="Indicadores Gerais"><BarChart3 size={17} /><span>Indicadores Gerais</span></button>
         <button className={`nav-item ${view === "client" ? "nav-item-active" : ""}`} onClick={() => goTo("client")} title="Por Cliente"><Users size={17} /><span>Por Cliente</span></button>
-        {user?.role === "admin" && (
+        {(user?.role === "admin" || user?.role === "super_admin") && (
           <button
             type="button"
             className={`nav-item nav-item-admin ${view === "access" ? "nav-item-active" : ""}`}
@@ -180,14 +180,14 @@ function Sidebar({ collapsed, setCollapsed, view, setView, mobileOpen, onCloseMo
             {user?.name ? user.name.split(" ")[0] : "Usuário"}
           </strong>
           <span className="sidebar-user-role">
-            {user?.role === "admin" ? "ADMINISTRADOR" : "USUÁRIO"}
+            {user?.role === "super_admin" ? "SUPER ADMINISTRADOR" : user?.role === "admin" ? "ADMINISTRADOR" : "USUÁRIO"}
           </span>
           <span className="sidebar-user-email" title={user?.email || ""}>
             {user?.email || ""}
           </span>
         </div>
         <div className="sidebar-user-actions">
-          {user?.role === "admin" && (
+          {(user?.role === "admin" || user?.role === "super_admin") && (
             <button
               type="button"
               className="sidebar-action-btn"
@@ -217,7 +217,7 @@ function formatSyncDate(value: string): string {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(value));
 }
 
-function TopHeader({ onMenu, theme, setTheme, onRefresh, loading, syncLogs, view }: { onMenu: () => void; theme: "dark" | "light"; setTheme: (value: "dark" | "light") => void; onRefresh: () => void; loading: boolean; syncLogs: SyncLogItem[]; view: DashboardView }) {
+function TopHeader({ onMenu, theme, setTheme, onRefresh, loading, syncLogs, view, userRole }: { onMenu: () => void; theme: "dark" | "light"; setTheme: (value: "dark" | "light") => void; onRefresh: () => void; loading: boolean; syncLogs: SyncLogItem[]; view: DashboardView; userRole?: string }) {
   const [showSyncLog, setShowSyncLog] = useState(false);
   const breadcrumb = view === "access" ? "Cadastro" : view === "client" ? "Visão por cliente" : "Visão executiva";
   return (
@@ -227,7 +227,7 @@ function TopHeader({ onMenu, theme, setTheme, onRefresh, loading, syncLogs, view
         <div className="breadcrumbs"><span>Indicadores de Serviços</span><ChevronRight size={14} /><strong>{breadcrumb}</strong></div>
       </div>
       <div className="top-header-actions">
-        <a className="source-link" href={spreadsheetSource} target="_blank" rel="noreferrer"><Database size={14} /> Fonte Sheets <ChevronRight size={13} /></a>
+        {userRole === "super_admin" && <a className="source-link" href={spreadsheetSource} target="_blank" rel="noreferrer"><Database size={14} /> Fonte Sheets <ChevronRight size={13} /></a>}
         <div className="sync-log-anchor">
           <button className="sync-status sync-status-button" onClick={() => setShowSyncLog((value) => !value)} aria-expanded={showSyncLog}><span className={`status-dot ${loading ? "status-dot-warning" : "status-dot-live"}`} /> {loading ? "atualizando base" : syncLogs[0] ? `atualizado ${formatSyncDate(syncLogs[0].at)}` : "atualização pública"}</button>
           {showSyncLog && <div className="sync-log-popover" role="dialog" aria-label="Histórico de sincronização"><div className="sync-log-title"><strong>Histórico de sincronização</strong><span>{syncLogs.length} registros</span></div>{syncLogs.length ? syncLogs.map((log, index) => <div className="sync-log-item" key={`${log.at}-${index}`}><span className={`sync-log-dot sync-log-dot-${log.status}`} /><div><strong>{log.message}</strong><small>{formatSyncDate(log.at)}</small><small>{log.counts}</small></div></div>) : <p className="sync-log-empty">Nenhuma sincronização concluída nesta sessão.</p>}</div>}
@@ -578,7 +578,7 @@ export default function Home() {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [selectedClient, setSelectedClient] = useState("");
   const userAllowedServices = useMemo(() => {
-    if (authQuery.data?.role === "admin") return null;
+    if (authQuery.data?.role !== "user") return null;
     const list = authQuery.data?.allowedServices;
     return Array.isArray(list) ? list : null;
   }, [authQuery.data]);
@@ -611,7 +611,7 @@ export default function Home() {
     <a className="skip-link" href="#main-content">Pular para o conteúdo principal</a>
     <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} view={view} setView={setView} mobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} user={authQuery.data} onLogout={handleLogout} />
     <button type="button" className={`mobile-nav-overlay ${mobileNavOpen ? "mobile-nav-overlay-open" : ""}`} aria-label="Fechar menu lateral" onClick={() => setMobileNavOpen(false)} />
-    <div className="app-main"><TopHeader onMenu={() => { setCollapsed(false); setMobileNavOpen(true); }} theme={theme} setTheme={setTheme} onRefresh={refresh} loading={loading} syncLogs={syncLogs} view={view} /><main id="main-content" className="dashboard-main">{syncNotice && <div className="sync-notice" role="status"><CircleAlert size={15} />{syncNotice}</div>}{view === "general" && <FilterBar filters={filters} setFilters={setFilters} options={options} onClear={clearFilters} />}{view === "access" ? (authQuery.data?.role === "admin" ? <UserManagementModal mode="page" isOpen={true} onClose={() => setView("general")} currentUserEmail={authQuery.data?.email} availableServices={options.services} /> : <div className="access-denied-card"><Shield size={24} /><h2>Acesso restrito</h2><p>A página Cadastro está disponível somente para administradores.</p></div>) : loading && !snapshot ? <LoadingState /> : !snapshot && error ? <ErrorState message={error} onRetry={refresh} /> : snapshot ? (view === "general" ? <GeneralPage snapshot={snapshot} /> : <ClientPage detail={clientDetail} clients={clientOptions} selectedClient={selectedClient} onSelectClient={setSelectedClient} />) : null}</main><footer className="app-footer"><span><span className="status-dot status-dot-live" /> Dados conectados via Google Sheets</span><span>Indicadores de Serviços · {formatNumber(data?.fatos.length ?? 0)} fatos carregados</span></footer>{loading && <div className="sync-blocker" role="alert" aria-live="polite"><div className="sync-blocker-card"><div className="loading-orbit"><span /><span /><span /></div><strong>{syncLogs.length ? "Atualizando indicadores" : "Conectando à base de indicadores"}</strong><p>{syncLogs.length ? "A navegação ficará bloqueada até a leitura das abas terminar." : "Consultando as abas públicas do Google Sheets."}</p></div></div>}</div>
+    <div className="app-main"><TopHeader onMenu={() => { setCollapsed(false); setMobileNavOpen(true); }} theme={theme} setTheme={setTheme} onRefresh={refresh} loading={loading} syncLogs={syncLogs} view={view} userRole={authQuery.data?.role} /><main id="main-content" className="dashboard-main">{syncNotice && <div className="sync-notice" role="status"><CircleAlert size={15} />{syncNotice}</div>}{view === "general" && <FilterBar filters={filters} setFilters={setFilters} options={options} onClear={clearFilters} />}{view === "access" ? ((authQuery.data?.role === "admin" || authQuery.data?.role === "super_admin") ? <UserManagementModal mode="page" isOpen={true} onClose={() => setView("general")} currentUserEmail={authQuery.data?.email} availableServices={options.services} /> : <div className="access-denied-card"><Shield size={24} /><h2>Acesso restrito</h2><p>A página Cadastro está disponível somente para administradores.</p></div>) : loading && !snapshot ? <LoadingState /> : !snapshot && error ? <ErrorState message={error} onRetry={refresh} /> : snapshot ? (view === "general" ? <GeneralPage snapshot={snapshot} /> : <ClientPage detail={clientDetail} clients={clientOptions} selectedClient={selectedClient} onSelectClient={setSelectedClient} />) : null}</main><footer className="app-footer"><span><span className="status-dot status-dot-live" /> Dados conectados via Google Sheets</span><span>Indicadores de Serviços · {formatNumber(data?.fatos.length ?? 0)} fatos carregados</span></footer>{loading && <div className="sync-blocker" role="alert" aria-live="polite"><div className="sync-blocker-card"><div className="loading-orbit"><span /><span /><span /></div><strong>{syncLogs.length ? "Atualizando indicadores" : "Conectando à base de indicadores"}</strong><p>{syncLogs.length ? "A navegação ficará bloqueada até a leitura das abas terminar." : "Consultando as abas públicas do Google Sheets."}</p></div></div>}</div>
     </div>
   );
 }
