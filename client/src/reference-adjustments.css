@@ -3407,3 +3407,73 @@
   .client-event-row strong { font-size: 10px; }
   .client-event-row small { font-size: 8.5px; }
 }
+
+
+/* Cadastro refinado: campos empilhados e filtros no mesmo padrão do dashboard */
+.access-page-card .add-user-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 11px;
+}
+.access-page-card .add-user-grid .form-group {
+  width: 100%;
+}
+.permission-services-filter {
+  width: min(100%, 430px);
+  min-width: 0;
+}
+.permission-services-trigger {
+  width: 100%;
+  min-height: 42px;
+  justify-content: flex-start;
+}
+.permission-services-trigger .multi-select-copy {
+  min-width: 0;
+  flex: 1 1 auto;
+  text-align: left;
+}
+.permission-services-trigger .multi-select-copy strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.permission-services-menu {
+  left: 0;
+  right: auto;
+  width: min(430px, calc(100vw - 48px));
+  max-width: calc(100vw - 48px);
+}
+.permission-services-menu .multi-select-options {
+  max-height: 250px;
+}
+.users-role-filter {
+  min-width: 168px;
+  height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.users-role-filter::after,
+.users-role-filter select {
+  display: none;
+}
+.users-role-filter .multi-select-trigger {
+  width: 100%;
+  min-height: 34px;
+  justify-content: flex-start;
+}
+.role-filter-menu {
+  right: 0;
+  min-width: 210px;
+}
+.role-pill-super_admin {
+  background: rgba(155, 123, 248, .16);
+  color: #c4b5fd;
+  border-color: rgba(155, 123, 248, .4);
+}
+@media (max-width: 680px) {
+  .permission-services-filter,
+  .permission-services-menu { width: 100%; max-width: 100%; }
+  .role-filter-menu { left: 0; right: auto; width: min(280px, calc(100vw - 48px)); }
+}
