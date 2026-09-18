@@ -78,12 +78,9 @@ jobs:
           set -Eeuo pipefail
           APP_PATH="$1"
           cd "$APP_PATH"
-          set -a
-          . "$APP_PATH/.env"
-          set +a
           pnpm install --frozen-lockfile
-          node scripts/ensure-role-enum.mjs
-          pnpm drizzle-kit migrate
+          APP_ENV_FILE="$APP_PATH/.env" node scripts/ensure-role-enum.mjs
+          APP_ENV_FILE="$APP_PATH/.env" node scripts/run-production-migrations.mjs
           pnpm check
           pnpm test
           pnpm build
