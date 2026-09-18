@@ -1,8 +1,8 @@
 # Manual de Indicadores e Gráficos
 
 **Projeto:** Indicadores de Serviços  
-**Versão do manual:** 3.2
-**Atualizado em:** 17/09/2026
+**Versão do manual:** 3.5
+**Atualizado em:** 18/09/2026
 **Responsável:** Manus AI
 
 ## 1. Objetivo
@@ -429,6 +429,7 @@ Para administradores autenticados, o menu lateral esquerdo exibe o botão **Cada
 | 3.2 | 17/09/2026 | Cards `Clientes ativos` e `CNPJs em operação` passaram a oferecer listas detalhadas acionáveis, com busca contextual, contagem deduplicada, respeito aos filtros globais e às permissões de serviços. |
 | 3.3 | 18/09/2026 | Adicionada a opção `Mês anterior` logo após `Mês atual`; o recorte usa o mês-calendário imediatamente anterior ao mês de referência, respeitando ano, filtros globais, estoques, fluxos e comparativo anual. |
 | 3.4 | 18/09/2026 | O painel `Movimentações do cliente` foi renomeado para `Serviço e Responsáveis` e simplificado para exibir somente data, serviço e responsável, removendo movimento, evento e clube da apresentação. |
+| 3.5 | 18/09/2026 | Criado o perfil Super Administrador (com exclusividade no botão Fonte Sheets), restrição de novos cadastros ao domínio @vena.app.br mantendo contas pré-existentes, formulário de cadastro vertical sem campo de foto, seletor de serviços padrão dashboard e filtro de perfis unificado. |
 
 ## Referências
 
