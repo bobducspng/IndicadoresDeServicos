@@ -51,10 +51,10 @@ Os filtros ficam no cabeçalho e afetam todos os indicadores e gráficos da pág
 | **Marca / Clube** | `Marca` ou `Clube` nas abas `Fatos Movimentacao` e `Vigência CNPJ x Serviço` | Um registro é mantido quando o valor selecionado corresponde à marca ou ao clube. |
 | **Serviços** | `Serviço` nas abas `Fatos Movimentacao` e `Vigência CNPJ x Serviço` | Aceita um ou mais serviços. |
 | **Ano** | Anos encontrados em `Data`, `Ano-Mês`, `Início` e `Fim` | Define o ano de referência. A opção padrão é todos os anos. |
-| **Período** | Datas de cada registro | Refinamento posterior ao ano: Ano, últimos 6 meses, mês, 1º/2º semestre ou 1º/2º/3º/4º trimestre. |
+| **Período** | Datas de cada registro | Refinamento posterior ao ano: Ano, últimos 6 meses, mês atual, mês anterior, 1º/2º semestre ou 1º/2º/3º/4º trimestre. |
 
 O padrão inicial é **Últimos 6 meses**. Quando um ano é selecionado, a data de referência passa a ser a última data disponível naquele ano e o filtro de período é calculado dentro desse ano.
-Quando o período é refinado para **Ano**, **Mês**, **1º/2º Semestre** ou **1º/2º/3º/4º Trimestre** dentro de um ano selecionado, o dashboard mantém o mês-calendário da referência global para o preset **Mês atual** e troca apenas o ano dos dados. Os semestres usam janeiro–junho e julho–dezembro; os trimestres usam janeiro–março, abril–junho, julho–setembro e outubro–dezembro. Por exemplo, se a referência global está em setembro, selecionar 2025 + Mês atual mostra setembro/2025; o comparativo usa setembro/2024.
+Quando o período é refinado para **Ano**, **Mês atual**, **Mês anterior**, **1º/2º Semestre** ou **1º/2º/3º/4º Trimestre** dentro de um ano selecionado, o dashboard mantém o mês-calendário da referência global para o preset **Mês atual** e calcula o mês imediatamente anterior para **Mês anterior**, trocando somente o ano dos dados. Os semestres usam janeiro–junho e julho–dezembro; os trimestres usam janeiro–março, abril–junho, julho–setembro e outubro–dezembro. Por exemplo, se a referência global está em setembro, selecionar 2025 + Mês atual mostra setembro/2025 e selecionar 2025 + Mês anterior mostra agosto/2025; o comparativo usa o mesmo recorte no ano anterior.
 Os meses sem registros continuam presentes na **Linha do Tempo** com zero contratações e zero cancelamentos. Isso preserva a sequência cronológica completa do intervalo filtrado.
 
 ## 5. Indicadores de destaque
@@ -277,14 +277,14 @@ O histórico considera todos os serviços iniciados até a data de referência m
 | Exibição | Linha azul com a quantidade de serviços ativos por mês e rótulos espaçados para evitar sobreposição de meses e anos. |
 | Observação | A série é calculada diretamente da vigência porque `Base Mensal` não possui o campo `Cliente`; o histórico completo é independente do período selecionado na página geral. |
 
-### 7.5 Movimentações do cliente
+### 7.5 Serviço e Responsáveis
 
 | Item | Descrição |
 |---|---|
 | Aba | `Fatos Movimentacao` |
 | Campos | `Cliente`, `Data`, `Serviço`, `Tipo Movimentação`, `Evento Cliente`, `Clube`, `Responsável` |
 | Granularidade | Todos os eventos do cliente até a data de referência mais recente da base. |
-| Exibição | Lista cronológica reversa com data, serviço, tipo de movimento, evento, clube e responsável. |
+| Exibição | Lista cronológica reversa com a data, o nome do serviço e o responsável exibido logo abaixo do serviço. |
 | Operação Assistida | Quando o movimento indica cancelamento, o texto é convertido para `Finalização do período` e `Serviço concluído`. Não é apresentado como cancelamento. |
 
 ### 7.6 Detalhamento dos serviços
@@ -427,6 +427,8 @@ Para administradores autenticados, o menu lateral esquerdo exibe o botão **Cada
 | 3.0 | 15/09/2026 | Painel administrativo convertido em página `Cadastro`, com edição de nome e serviços, busca, filtro por perfil, ordenação, cópia de e-mail, rolagem interna e redimensionamento manual das colunas. |
 | 3.1 | 15/09/2026 | Correção da regra da visão `Por Cliente`: serviços cuja data `Fim` foi atingida, inclusive no dia de referência, aparecem como `Encerrado`; `Operação Assistida` mantém seu status próprio e não vira cancelamento. |
 | 3.2 | 17/09/2026 | Cards `Clientes ativos` e `CNPJs em operação` passaram a oferecer listas detalhadas acionáveis, com busca contextual, contagem deduplicada, respeito aos filtros globais e às permissões de serviços. |
+| 3.3 | 18/09/2026 | Adicionada a opção `Mês anterior` logo após `Mês atual`; o recorte usa o mês-calendário imediatamente anterior ao mês de referência, respeitando ano, filtros globais, estoques, fluxos e comparativo anual. |
+| 3.4 | 18/09/2026 | O painel `Movimentações do cliente` foi renomeado para `Serviço e Responsáveis` e simplificado para exibir somente data, serviço e responsável, removendo movimento, evento e clube da apresentação. |
 
 ## Referências
 
