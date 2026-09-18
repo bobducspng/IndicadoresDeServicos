@@ -3393,3 +3393,17 @@
     font-size: 9.5px;
   }
 }
+
+
+/* Serviço e Responsáveis: hierarquia limpa com responsável abaixo do serviço */
+.client-event-content { min-width: 0; }
+.client-event-row strong { font-size: 10.5px; }
+.client-event-row small { display: flex; align-items: baseline; gap: 5px; overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.client-event-responsible-label { flex: 0 0 auto; color: var(--muted-2); font-size: 8px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.client-event-responsible-label::after { content: ":"; }
+@media (max-width: 760px) {
+  .client-event-row { grid-template-columns: 62px 8px minmax(0, 1fr); gap: 7px; }
+  .client-event-row time { font-size: 8.5px; }
+  .client-event-row strong { font-size: 10px; }
+  .client-event-row small { font-size: 8.5px; }
+}
