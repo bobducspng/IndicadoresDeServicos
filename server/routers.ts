@@ -46,9 +46,11 @@ export const appRouter = router({
     add: adminProcedure
       .input(
         z.object({
-          email: z.string().email(),
+          email: z.string().email().refine((value) => value.trim().toLowerCase().endsWith("@vena.app.br"), {
+            message: "Cadastre somente e-mails do domínio @vena.app.br.",
+          }),
           name: z.string().min(2, "Nome deve ter pelo menos 2 caracteres"),
-          role: z.enum(["user", "admin"]).default("user"),
+          role: z.enum(["user", "admin", "super_admin"]).default("user"),
           allowedServices: z.array(z.string()).optional(),
           avatarUrl: z.string().url().optional().or(z.string().nullable()),
         })
@@ -64,7 +66,7 @@ export const appRouter = router({
         })
       ),
     updateRole: adminProcedure
-      .input(z.object({ id: z.number().int(), role: z.enum(["user", "admin"]) }))
+      .input(z.object({ id: z.number().int(), role: z.enum(["user", "admin", "super_admin"]) }))
       .mutation(async ({ input }) => db.updateAllowedUserRole(input.id, input.role)),
     updateName: adminProcedure
       .input(z.object({ id: z.number().int(), name: z.string().trim().min(2, "Nome deve ter pelo menos 2 caracteres").max(255) }))

@@ -129,7 +129,7 @@ export async function listAllowedUsers(): Promise<AllowedUser[]> {
 export async function addAllowedUser(data: {
   email: string;
   name: string;
-  role?: "admin" | "user";
+  role?: "admin" | "super_admin" | "user";
   allowedServices?: string[] | null;
   avatarUrl?: string | null;
   addedBy?: string | null;
@@ -138,6 +138,9 @@ export async function addAllowedUser(data: {
   if (!db) throw new Error("Banco de dados indisponível");
 
   const normalizedEmail = data.email.trim().toLowerCase();
+  if (!normalizedEmail.endsWith("@vena.app.br")) {
+    throw new Error("Cadastre somente e-mails do domínio @vena.app.br.");
+  }
   const role = data.role ?? "user";
   const serializedServices = Array.isArray(data.allowedServices)
     ? JSON.stringify(Array.from(new Set(data.allowedServices.map((s) => s.trim()).filter(Boolean))))
@@ -199,7 +202,7 @@ export async function removeAllowedUser(id: number): Promise<boolean> {
   return true;
 }
 
-export async function updateAllowedUserRole(id: number, role: "admin" | "user"): Promise<AllowedUser> {
+export async function updateAllowedUserRole(id: number, role: "admin" | "super_admin" | "user"): Promise<AllowedUser> {
   const db = await getDb();
   if (!db) throw new Error("Banco de dados indisponível");
 
