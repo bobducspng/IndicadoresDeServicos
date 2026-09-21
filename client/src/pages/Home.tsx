@@ -509,20 +509,31 @@ function toTimestamp(value: string): number | null {
 function ClientActiveChart({ detail }: { detail: ClientDetail }) {
   const series = detail.activeSeries;
   const width = 720;
-  const height = 205;
-  const padding = { left: 30, right: 15, top: 18, bottom: 38 };
+  const laneHeight = 56;
+  const padding = { left: 112, right: 15, top: 24, bottom: 38 };
   const services = Array.from(new Set(series.flatMap((point) => point.services.map((service) => service.label))));
-  const max = Math.max(...series.flatMap((point) => point.services.map((service) => service.active)), 1);
+  const height = Math.max(220, padding.top + padding.bottom + Math.max(services.length, 1) * laneHeight);
   const chartWidth = width - padding.left - padding.right;
-  const chartHeight = height - padding.top - padding.bottom;
   const xFor = (index: number) => padding.left + (index / Math.max(series.length - 1, 1)) * chartWidth;
+  const laneFor = (serviceIndex: number) => {
+    const top = padding.top + serviceIndex * laneHeight;
+    return { top, center: top + laneHeight / 2, activeY: top + 15, inactiveY: top + laneHeight - 15 };
+  };
   const valueFor = (point: (typeof series)[number], service: string) => point.services.find((item) => item.label === service)?.active ?? 0;
-  const yFor = (value: number) => padding.top + (1 - value / max) * chartHeight;
-  const pathFor = (service: string) => series.reduce((result, item, index) => {
-    const command = index ? "L" : "M";
-    return `${result}${command} ${xFor(index)} ${yFor(valueFor(item, service))} `;
+  const yFor = (value: number, serviceIndex: number) => {
+    const lane = laneFor(serviceIndex);
+    return value ? lane.activeY : lane.inactiveY;
+  };
+  const smoothPathFor = (service: string, serviceIndex: number) => series.reduce((result, item, index) => {
+    const x = xFor(index);
+    const y = yFor(valueFor(item, service), serviceIndex);
+    if (!index) return `M ${x} ${y}`;
+    const previousX = xFor(index - 1);
+    const previousY = yFor(valueFor(series[index - 1], service), serviceIndex);
+    const controlX = (previousX + x) / 2;
+    return `${result} C ${controlX} ${previousY}, ${controlX} ${y}, ${x} ${y}`;
   }, "").trim();
-  const axisValues = max <= 1 ? [1, 0] : [max, Math.ceil(max / 2), 0];
+  const shortServiceLabel = (service: string) => service.length > 19 ? `${service.slice(0, 18).trim()}…` : service;
   const years = Array.from(new Set(series.map((item) => item.key.slice(0, 4))));
   const labelIndices = new Set<number>();
   if (years.length > 2) {
@@ -536,15 +547,21 @@ function ClientActiveChart({ detail }: { detail: ClientDetail }) {
       <div className="client-active-legend" aria-label="Legenda dos serviços">
         {services.map((service, index) => <span key={service} title={service}><i className="legend-dot" style={{ background: SERVICE_COLORS[index % SERVICE_COLORS.length] }} />{service}</span>)}
       </div>
-      <span className="chart-legend-note">uma linha por serviço · histórico completo</span>
+      <span className="chart-legend-note">faixas paralelas · linha suavizada</span>
     </div>
-    {series.length ? <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Evolução mensal de cada serviço ativo do cliente">
-      {axisValues.map((value) => <g key={value}><line x1={padding.left} x2={width - padding.right} y1={yFor(value)} y2={yFor(value)} className="chart-grid" /><text x="5" y={yFor(value) + 3} className="chart-axis-label">{value}</text></g>)}
-      {services.map((service, serviceIndex) => <path key={service} d={pathFor(service)} className="chart-line" style={{ stroke: SERVICE_COLORS[serviceIndex % SERVICE_COLORS.length] }} />)}
+    {series.length ? <svg className="client-active-chart-svg" style={{ height: `${Math.max(240, services.length * laneHeight + padding.top + padding.bottom)}px` }} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" role="img" aria-label="Evolução mensal dos serviços ativos em faixas paralelas">
+      <text x={padding.left} y="13" className="client-lane-state-label">ATIVO</text><text x={width - padding.right} y="13" textAnchor="end" className="client-lane-state-label">INATIVO</text>
+      {services.map((service, serviceIndex) => { const lane = laneFor(serviceIndex); const color = SERVICE_COLORS[serviceIndex % SERVICE_COLORS.length]; return <g key={service}>
+        <rect x={padding.left} y={lane.top + 4} width={chartWidth} height={laneHeight - 8} rx="7" className="client-lane-band" />
+        <line x1={padding.left} x2={width - padding.right} y1={lane.activeY} y2={lane.activeY} className="client-lane-guide client-lane-guide-active" />
+        <line x1={padding.left} x2={width - padding.right} y1={lane.inactiveY} y2={lane.inactiveY} className="client-lane-guide" />
+        <text x="5" y={lane.center + 3} className="client-lane-label"><title>{service}</title>{shortServiceLabel(service)}</text>
+        <path d={smoothPathFor(service, serviceIndex)} className="chart-line" style={{ stroke: color }} />
+      </g>; })}
       {series.map((point, index) => <g key={point.key}>
         {services.map((service, serviceIndex) => {
           const value = valueFor(point, service);
-          return <circle key={`${point.key}-${service}`} cx={xFor(index)} cy={yFor(value)} r="4" className="timeline-point" style={{ stroke: SERVICE_COLORS[serviceIndex % SERVICE_COLORS.length] }}><title>{point.label} · {service}: {value} ativo(s)</title></circle>;
+          return <circle key={`${point.key}-${service}`} cx={xFor(index)} cy={yFor(value, serviceIndex)} r="3.5" className="timeline-point" style={{ stroke: SERVICE_COLORS[serviceIndex % SERVICE_COLORS.length] }}><title>{point.label} · {service}: {value ? "ativo" : "inativo"}</title></circle>;
         })}
         {labelIndices.has(index) && <text x={xFor(index)} y={height - 10} textAnchor="middle" className="chart-label">{years.length > 2 ? point.key.slice(0, 4) : point.label}</text>}
       </g>)}
