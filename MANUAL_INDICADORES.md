@@ -1,8 +1,8 @@
 # Manual de Indicadores e Gráficos
 
 **Projeto:** Indicadores de Serviços  
-**Versão do manual:** 3.5
-**Atualizado em:** 18/09/2026
+**Versão do manual:** 3.7
+**Atualizado em:** 21/09/2026
 **Responsável:** Manus AI
 
 ## 1. Objetivo
@@ -273,8 +273,8 @@ O histórico considera todos os serviços iniciados até a data de referência m
 | Aba | `Vigência CNPJ x Serviço` |
 | Campos | `Cliente`, `Serviço`, `Início`, `Fim` |
 | Granularidade | Mês e serviço distinto. |
-| Regra | Para cada mês desde o primeiro serviço do cliente até a data de referência, conta serviços cujo início já ocorreu e cujo fim ainda não ocorreu no último dia do mês. |
-| Exibição | Linha azul com a quantidade de serviços ativos por mês e rótulos espaçados para evitar sobreposição de meses e anos. |
+| Regra | Para cada mês desde o primeiro serviço do cliente até a data de referência, calcula cada serviço separadamente: o início já deve ter ocorrido e o fim ainda não pode ter ocorrido no último dia do mês. |
+| Exibição | Cada serviço ocupa uma faixa horizontal própria, com linha suavizada entre o estado inativo e ativo, pontos mensais, rótulo lateral e cor consistente com a legenda. A disposição paralela evita que séries binárias `0/1` se sobreponham. |
 | Observação | A série é calculada diretamente da vigência porque `Base Mensal` não possui o campo `Cliente`; o histórico completo é independente do período selecionado na página geral. |
 
 ### 7.5 Serviço e Responsáveis
@@ -428,6 +428,8 @@ Para administradores autenticados, o menu lateral esquerdo exibe o botão **Cada
 | 3.1 | 15/09/2026 | Correção da regra da visão `Por Cliente`: serviços cuja data `Fim` foi atingida, inclusive no dia de referência, aparecem como `Encerrado`; `Operação Assistida` mantém seu status próprio e não vira cancelamento. |
 | 3.2 | 17/09/2026 | Cards `Clientes ativos` e `CNPJs em operação` passaram a oferecer listas detalhadas acionáveis, com busca contextual, contagem deduplicada, respeito aos filtros globais e às permissões de serviços. |
 | 3.3 | 18/09/2026 | Adicionada a opção `Mês anterior` logo após `Mês atual`; o recorte usa o mês-calendário imediatamente anterior ao mês de referência, respeitando ano, filtros globais, estoques, fluxos e comparativo anual. |
+| 3.6 | 21/09/2026 | O gráfico `HISTÓRICO MENSAL · Evolução dos serviços ativos` passou de uma linha agregada para uma linha independente por serviço, com legenda, cores e pontos mensais próprios. |
+| 3.7 | 21/09/2026 | Redesign visual do histórico mensal: serviços agora aparecem em faixas paralelas, com linhas suavizadas entre os estados ativo/inativo, rótulos laterais e guias independentes para evitar sobreposição de séries binárias. |
 | 3.4 | 18/09/2026 | O painel `Movimentações do cliente` foi renomeado para `Serviço e Responsáveis` e simplificado para exibir somente data, serviço e responsável, removendo movimento, evento e clube da apresentação. |
 | 3.5 | 18/09/2026 | Criado o perfil Super Administrador (com exclusividade no botão Fonte Sheets), restrição de novos cadastros ao domínio @vena.app.br mantendo contas pré-existentes, formulário de cadastro vertical sem campo de foto, seletor de serviços padrão dashboard e filtro de perfis unificado. |
 
