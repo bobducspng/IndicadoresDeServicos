@@ -3563,3 +3563,54 @@
     max-width: min(48vw, 180px);
   }
 }
+
+
+/* Histórico mensal por cliente: faixas paralelas para estados binários sem sobreposição */
+.client-active-chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 240px;
+  overflow: visible;
+}
+.client-active-chart-svg .client-lane-band {
+  fill: color-mix(in srgb, var(--surface-2) 58%, transparent);
+  stroke: color-mix(in srgb, var(--line) 72%, transparent);
+  stroke-width: 1;
+}
+.client-active-chart-svg .client-lane-guide {
+  stroke: color-mix(in srgb, var(--line) 78%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 2 5;
+}
+.client-active-chart-svg .client-lane-guide-active {
+  stroke: color-mix(in srgb, var(--teal) 34%, var(--line));
+  stroke-dasharray: 0;
+}
+.client-active-chart-svg .client-lane-state-label {
+  fill: var(--muted-2);
+  font-family: "Inter", sans-serif;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: .12em;
+}
+.client-active-chart-svg .client-lane-label {
+  fill: var(--ink);
+  font-family: "Inter", sans-serif;
+  font-size: 9px;
+  font-weight: 700;
+}
+.client-active-chart-svg .chart-line {
+  stroke-width: 2.8;
+}
+@media (max-width: 620px) {
+  .client-active-chart-svg {
+    min-height: 250px;
+  }
+  .client-active-chart-svg .client-lane-label {
+    font-size: 8px;
+  }
+  .client-active-chart-svg .client-lane-state-label {
+    font-size: 7px;
+  }
+}
