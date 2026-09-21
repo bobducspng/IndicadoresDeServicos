@@ -3510,3 +3510,56 @@
   margin-top: 1px;
   color: #fb7185;
 }
+
+
+/* Histórico mensal multissérie: uma linha e uma cor para cada serviço */
+.client-active-chart-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.client-active-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
+.client-active-legend span {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 5px;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.client-active-legend .legend-dot {
+  flex: 0 0 7px;
+}
+.client-active-chart-header .chart-legend-note {
+  flex: 0 0 auto;
+  margin-left: auto;
+  white-space: nowrap;
+}
+.client-active-chart svg .chart-line {
+  stroke-width: 2.6;
+}
+@media (max-width: 760px) {
+  .client-active-chart-header {
+    display: block;
+  }
+  .client-active-chart-header .chart-legend-note {
+    display: block;
+    margin-top: 7px;
+  }
+  .client-active-legend span {
+    max-width: min(48vw, 180px);
+  }
+}
