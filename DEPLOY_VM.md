@@ -97,6 +97,22 @@ Criar estes secrets:
 
 Não criar secret para `.env`; o `.env` permanece somente na VM.
 
+## 3.1 Configuração do Google OAuth
+
+O login usa o cliente Web OAuth do projeto Google `bpovena`. O arquivo JSON de credenciais não deve ser versionado, enviado ao GitHub ou colado no chat. Na VM, configure o `.env` localmente com o `client_id` e o `client_secret` correspondentes ao mesmo cliente:
+
+```env
+GOOGLE_CLIENT_ID=503315345712-cc2kanuv537ifaugpth5b0u6rsqo40eg.apps.googleusercontent.com
+GOOGLE_CLIENT_SECRET=valor_real_de_web.client_secret
+GOOGLE_REDIRECT_URI=https://santa-barbed-glorious.ngrok-free.dev/api/auth/google/callback
+GOOGLE_AUTH_URI=https://accounts.google.com/o/oauth2/auth
+GOOGLE_TOKEN_URI=https://oauth2.googleapis.com/token
+```
+
+Para desenvolvimento local, altere somente `GOOGLE_REDIRECT_URI` para `http://localhost:3000/api/auth/google/callback`. O código aceita exclusivamente os dois redirects cadastrados no Google Cloud Console. `SESSION_SECRET` é o nome recomendado para novas instalações; a aplicação mantém `JWT_SECRET` como fallback para não invalidar a instalação atual.
+
+O fluxo expõe `GET /api/auth/google` e mantém `GET /api/auth/google/start` como alias de compatibilidade. O callback é `GET /api/auth/google/callback`; também existem `GET /api/auth/me`, `POST /api/auth/logout` e `GET /api/auth/logout` para integrações REST. O segredo permanece exclusivamente no servidor.
+
 ## 4. Fazer o primeiro push
 
 O repositório GitHub foi criado, mas estava vazio. A primeira versão deve ser a versão atual do WebDev. Depois de colocar o pacote portátil atualizado na VM, preservar o `.env` e executar:
