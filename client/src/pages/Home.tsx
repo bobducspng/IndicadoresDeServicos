@@ -362,7 +362,7 @@ function ActiveListDialog({ kind, snapshot, onClose }: { kind: ListDialogKind; s
 }
 
 function Panel({ title, eyebrow, icon: Icon, children, className = "" }: { title: string; eyebrow?: string; icon?: typeof Activity; children: ReactNode; className?: string }) {
-  return <section className={`panel ${className}`}><div className="panel-header"><div className="panel-title-block">{Icon && <div className="panel-icon"><Icon size={16} /></div>}<div><div className="panel-eyebrow">{eyebrow}</div><h2>{title}</h2></div></div><button className="panel-menu" aria-label={`Opções de ${title}`}><Settings2 size={14} /></button></div>{children}</section>;
+  return <section className={`panel ${className}`}><div className="panel-header"><div className="panel-title-block">{Icon && <div className="panel-icon"><Icon size={16} /></div>}<div><div className="panel-eyebrow">{eyebrow}</div><h2>{title}</h2></div></div></div>{children}</section>;
 }
 
 function formatMovementDate(value: string): string {
@@ -412,7 +412,7 @@ function TimelineChart({ series }: { series: DashboardSnapshot["timeline"] }) {
 
 function ServiceBars({ items, total }: { items: DashboardSnapshot["serviceBreakdown"]; total: number }) {
   const max = Math.max(...items.map((item) => item.value), 1);
-  return <div className="service-bars"><div className="service-total"><span>SERVIÇOS ÚNICOS POR CLIENTE</span><strong>Total: {formatNumber(total)}</strong></div>{items.slice(0, 8).map((item, index) => <div className="service-row" key={item.label}><div className="service-row-label"><span title={item.label}>{item.label}</span><strong>{formatNumber(item.value)}</strong><em>{item.percent.toFixed(1).replace(".", ",")}%</em></div><div className="service-track"><span style={{ width: `${Math.max(4, (item.value / max) * 100)}%`, background: `linear-gradient(90deg, ${SERVICE_COLORS[index % SERVICE_COLORS.length]}, color-mix(in srgb, ${SERVICE_COLORS[index % SERVICE_COLORS.length]} 60%, white))` }} /></div></div>)}</div>;
+  return <div className="service-bars"><div className="service-total"><span>SERVIÇOS ÚNICOS POR CLIENTE</span><strong>Total: {formatNumber(total)}</strong></div><div className="service-bars-list" tabIndex={0} aria-label="Distribuição completa por serviço">{items.map((item, index) => <div className="service-row" key={item.label}><div className="service-row-label"><span title={item.label}>{item.label}</span><strong>{formatNumber(item.value)}</strong><em>{item.percent.toFixed(1).replace(".", ",")}%</em></div><div className="service-track"><span style={{ width: `${Math.max(4, (item.value / max) * 100)}%`, background: `linear-gradient(90deg, ${SERVICE_COLORS[index % SERVICE_COLORS.length]}, color-mix(in srgb, ${SERVICE_COLORS[index % SERVICE_COLORS.length]} 60%, white))` }} /></div></div>)}</div></div>;
 }
 
 function ClientServiceBars({ items }: { items: DashboardSnapshot["clientServiceBreakdown"] }) {
