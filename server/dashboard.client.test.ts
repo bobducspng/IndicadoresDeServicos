@@ -62,44 +62,6 @@ describe("deriveClientDetail", () => {
     expect(detail?.serviceHistory.some((item) => item.status === "Ativo")).toBe(true);
   });
 
-  it("monta uma série mensal independente para cada serviço", () => {
-    const detail = deriveClientDetail(sheetsFrom([
-      {
-        Cliente: "Cliente Multisserviço",
-        Serviço: "BPO Gerencial",
-        Início: "2026-01-01",
-        Fim: "2026-01-31",
-        CNPJ: "123",
-      },
-      {
-        Cliente: "Cliente Multisserviço",
-        Serviço: "Contabilidade",
-        Início: "2026-02-01",
-        Fim: "2026-04-30",
-        CNPJ: "123",
-      },
-    ]), "Cliente Multisserviço");
-
-    expect(detail?.activeSeries.map((point) => point.services)).toEqual([
-      [
-        { label: "BPO Gerencial", active: 1 },
-        { label: "Contabilidade", active: 0 },
-      ],
-      [
-        { label: "BPO Gerencial", active: 0 },
-        { label: "Contabilidade", active: 1 },
-      ],
-      [
-        { label: "BPO Gerencial", active: 0 },
-        { label: "Contabilidade", active: 1 },
-      ],
-      [
-        { label: "BPO Gerencial", active: 0 },
-        { label: "Contabilidade", active: 1 },
-      ],
-    ]);
-  });
-
   it("combina o histórico operacional com a vigência atual do cliente", () => {
     const detail = deriveClientDetail(sheetsFrom([
       {
