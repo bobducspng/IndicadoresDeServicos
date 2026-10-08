@@ -107,15 +107,6 @@ export interface ClientEventPoint {
   responsible: string;
 }
 
-export interface ClientActiveSeriesPoint {
-  key: string;
-  label: string;
-  services: Array<{
-    label: string;
-    active: number;
-  }>;
-}
-
 export interface ClientDetail {
   client: string;
   referenceEndDate: string;
@@ -130,7 +121,6 @@ export interface ClientDetail {
     lastMovementDate: string;
   };
   serviceHistory: ClientServiceHistory[];
-  activeSeries: ClientActiveSeriesPoint[];
   events: ClientEventPoint[];
   brand: string;
   city: string;
@@ -558,10 +548,6 @@ function clientRows(rows: SheetRow[]): DashboardSnapshot["clientRows"] {
   }).sort((a, b) => b.services - a.services || a.client.localeCompare(b.client, "pt-BR"));
 }
 
-function endOfMonth(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0, 23, 59, 59));
-}
-
 function endOfDate(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59));
 }
@@ -665,35 +651,6 @@ function historicalRowsForClient(historyRows: SheetRow[], vigenciaRows: SheetRow
   return reconstructed;
 }
 
-function clientActiveSeries(history: ClientServiceHistory[], referenceEnd: Date): ClientActiveSeriesPoint[] {
-  const starts = history.map((item) => toDate(item.startDate)).filter((value): value is Date => Boolean(value));
-  if (!starts.length) return [];
-  const serviceNames = Array.from(new Set(history.map((item) => asText(item.service)).filter(Boolean)))
-    .sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const firstMonth = startOfMonth(new Date(Math.min(...starts.map((value) => value.getTime()))));
-  const lastMonth = startOfMonth(referenceEnd);
-  const points: ClientActiveSeriesPoint[] = [];
-  for (let cursor = new Date(firstMonth); cursor <= lastMonth; cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1))) {
-    const monthEnd = endOfMonth(cursor);
-    const key = monthKey(cursor);
-    points.push({
-      key,
-      label: monthLabel(key),
-      services: serviceNames.map((service) => {
-        const serviceKey = normalize(service);
-        const active = history.some((item) => {
-          if (normalize(item.service) !== serviceKey) return false;
-          const start = toDate(item.startDate);
-          const end = toDate(item.endDate);
-          return Boolean(start && start <= monthEnd && (!end || endOfDate(end) >= monthEnd));
-        }) ? 1 : 0;
-        return { label: service, active };
-      }),
-    });
-  }
-  return points;
-}
-
 export function buildClientOptions(data: DashboardSheets): string[] {
   const clients = new Map<string, string>();
   [...data.vigencia, ...data.fatos].forEach((row) => {
@@ -771,7 +728,6 @@ export function deriveClientDetail(data: DashboardSheets, client: string): Clien
       lastMovementDate,
     },
     serviceHistory,
-    activeSeries: clientActiveSeries(serviceHistory, range.end),
     events,
     brand: asText(first?.["Marca"]) || asText(first?.["Clube"]) || "—",
     city: asText(first?.["Cidade"]) || "—",
