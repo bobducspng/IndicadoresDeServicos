@@ -96,7 +96,7 @@ function useDashboardData(enabled: boolean) {
         if (!active) return;
         const merged = mergeDashboardSheets(data, nextData);
         const now = new Date().toISOString();
-        const counts = `${merged.data.fatos.length.toLocaleString("pt-BR")} fatos · ${merged.data.vigencia.length.toLocaleString("pt-BR")} vigências · ${merged.data.baseMensal.length.toLocaleString("pt-BR")} meses`;
+        const counts = `${merged.data.fatos.length.toLocaleString("pt-BR")} fatos · ${merged.data.vigencia.length.toLocaleString("pt-BR")} vigências · ${merged.data.historicoServicos.length.toLocaleString("pt-BR")} históricos · ${merged.data.baseMensal.length.toLocaleString("pt-BR")} meses`;
         const partial = merged.partialSheets.length > 0;
         setData(merged.data);
         setSyncNotice(partial ? "A atualização pública retornou uma aba incompleta; mantivemos essa aba com a última leitura completa." : "");
