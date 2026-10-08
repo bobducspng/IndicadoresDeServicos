@@ -166,7 +166,7 @@ A linha do tempo mede **serviços movimentados**, e não clientes únicos. Por i
 | Campos | `Cliente`, `Serviço`, `Início`, `Fim`, além dos campos utilizados pelos filtros |
 | Granularidade | Par único `Cliente + Serviço`. |
 | Regra | Deduplica CNPJs e linhas repetidas para contar cada serviço uma única vez por cliente. |
-| Exibição | Barras coloridas com total, volume por serviço e percentual em relação ao total. |
+| Exibição | Todas as barras coloridas com total, volume por serviço e percentual em relação ao total; quando a lista excede a altura do painel, a rolagem fica dentro do próprio indicador. |
 | Filtros | Segmento, marca/clube, serviço, ano e período. |
 
 O indicador não mede quantidade de CNPJs. Um cliente com vários CNPJs continua representando uma ocorrência daquele serviço.
@@ -227,25 +227,25 @@ A aba `posicao geografica` possui `Região geográfica`, `Cidade` e `UF`, mas n�
 
 ## 7. Página Por Cliente
 
-A página **Por Cliente** possui um seletor próprio de cliente e apresenta o histórico completo desse cliente, sem aplicar os filtros globais da página **Indicadores Gerais**. Ao selecionar um cliente, a aplicação monta uma visão individual a partir da aba `Vigência CNPJ x Serviço` e complementa os eventos com a aba `Fatos Movimentacao`.
+A página **Por Cliente** possui um seletor próprio de cliente e apresenta o histórico completo desse cliente, sem aplicar os filtros globais da página **Indicadores Gerais**. Ao selecionar um cliente, a aplicação combina a aba `Vigência CNPJ x Serviço` (carteira atual, CNPJs e atributos) com a aba `Histórico de Serviços` (contratações, cancelamentos e ciclos anteriores) e complementa as movimentações com `Fatos Movimentacao`.
 
 ### 7.1 Seletor de cliente
 
 | Item | Descrição |
 |---|---|
-| Fonte | `Vigência CNPJ x Serviço` e `Fatos Movimentacao` |
+| Fonte | `Vigência CNPJ x Serviço`, `Histórico de Serviços` e `Fatos Movimentacao` |
 | Campo | `Cliente` |
 | Regra | Lista nomes únicos, permite busca parcial e seleciona um cliente por vez. |
-| Comportamento | Enquanto o usuário digita, a busca permanece estável no cabeçalho. A lista inclui clientes encontrados nas abas de vigência e fatos. Os indicadores só aparecem quando existe uma correspondência selecionada. |
+| Comportamento | Enquanto o usuário digita, a busca permanece estável no cabeçalho. A lista inclui clientes encontrados nas abas de vigência, histórico e fatos. Os indicadores só aparecem quando existe uma correspondência selecionada. |
 
 ### 7.2 Cards individuais
 
 | Indicador | Aba | Campos | Regra |
 |---|---|---|---|
-| **Serviços ativos** | `Vigência CNPJ x Serviço` | `Cliente`, `Serviço`, `Início`, `Fim` | Conta serviços distintos cujo início já ocorreu e que não possuem `Fim` atingido na data de referência. Uma data fim igual ao dia de corte já deixa o ciclo encerrado. |
-| **CNPJs vinculados** | `Vigência CNPJ x Serviço` | `Cliente`, `CNPJ` | Conta CNPJs distintos do cliente. |
-| **Tempo médio** | `Vigência CNPJ x Serviço` | `Serviço`, `Início`, `Fim` | Calcula a duração média dos serviços históricos em dias. Serviços abertos usam a data de referência mais recente da base. |
-| **Relacionamento** | `Vigência CNPJ x Serviço` | `Início` | Mede o período entre o primeiro início de serviço e a data final de referência, exibido em anos. |
+| **Serviços ativos** | `Vigência CNPJ x Serviço` + `Histórico de Serviços` | `Cliente`, `Serviço`, `Início`, `Fim`, `Nome Cliente`, `Serviço(s) Afetado(s)`, `Data Ativação`, `Data Desativação` | Conta serviços distintos cujo início já ocorreu e que não possuem `Fim` atingido na data de referência. A aba histórica reconstrói ciclos que já não aparecem na vigência atual. |
+| **CNPJs vinculados** | `Vigência CNPJ x Serviço` | `Cliente`, `CNPJ` | Conta CNPJs distintos do cliente na carteira de vigência. |
+| **Tempo médio** | `Vigência CNPJ x Serviço` + `Histórico de Serviços` | `Serviço`, `Início`, `Fim`, `Data Ativação`, `Data Desativação` | Calcula a duração média dos ciclos históricos em dias. Serviços abertos usam a data de referência mais recente da base. |
+| **Relacionamento** | `Vigência CNPJ x Serviço` + `Histórico de Serviços` | `Início`, `Data Ativação` | Mede o período entre o primeiro início de serviço e a data final de referência, exibido em anos. |
 
 O resumo lateral também apresenta serviços encerrados, primeiro serviço, última movimentação e quantidade de serviços no recorte. **Encerrados** conta ciclos distintos com campo `Fim` preenchido até a data de referência, inclusive ciclos de `Operação Assistida`; isso representa conclusão do período, não cancelamento.
 
@@ -255,9 +255,9 @@ Nos cards, **serviços no histórico** representa nomes de serviços únicos. No
 
 | Item | Descrição |
 |---|---|
-| Aba | `Vigência CNPJ x Serviço` |
-| Campos | `Cliente`, `Serviço`, `Início`, `Fim`, `Dias`, `CNPJ`, `Marca`, `Cidade`, `Estado`, `Região` |
-| Granularidade | Ciclo de contrato identificado por `Serviço + Início + Fim`. Linhas repetidas de CNPJ no mesmo período são agrupadas, mas recontratações ou períodos separados permanecem como linhas distintas. |
+| Aba(s) | `Vigência CNPJ x Serviço` e `Histórico de Serviços` |
+| Campos | Na vigência: `Cliente`, `Serviço`, `Início`, `Fim`, `Dias`, `CNPJ`, `Marca`, `Cidade`, `Estado`, `Região`; no histórico: `Nome Cliente`, `Serviço(s) Afetado(s)`, `Tipo de Operação`, `Data/Hora`, `Data Ativação`, `Data Desativação` |
+| Granularidade | Ciclo de contrato identificado por `Serviço + Início + Fim`. Linhas repetidas de CNPJ no mesmo período são agrupadas, contratos históricos são reconstruídos a partir das operações e recontratações ou períodos separados permanecem como linhas distintas. |
 | Paleta | Cada serviço usa a mesma paleta do gráfico `Distribuição por serviço`; ciclos do mesmo serviço mantêm a mesma cor. |
 | Status | O status aparece abaixo do nome: `Ativo`, `Encerrado` ou `Operação Assistida`. |
 | Datas | Exibe início e fim; serviços abertos mostram `Em aberto`. |
@@ -270,12 +270,12 @@ O histórico considera todos os serviços iniciados até a data de referência m
 
 | Item | Descrição |
 |---|---|
-| Aba | `Vigência CNPJ x Serviço` |
-| Campos | `Cliente`, `Serviço`, `Início`, `Fim` |
+| Aba(s) | `Vigência CNPJ x Serviço` e `Histórico de Serviços` |
+| Campos | Na vigência: `Cliente`, `Serviço`, `Início`, `Fim`; no histórico: `Nome Cliente`, `Serviço(s) Afetado(s)`, `Tipo de Operação`, `Data Ativação`, `Data Desativação` |
 | Granularidade | Mês e serviço distinto. |
 | Regra | Para cada mês desde o primeiro serviço do cliente até a data de referência, calcula cada serviço separadamente: o início já deve ter ocorrido e o fim ainda não pode ter ocorrido no último dia do mês. |
 | Exibição | Cada serviço ocupa uma faixa horizontal própria, com linha suavizada entre o estado inativo e ativo, pontos mensais, rótulo lateral e cor consistente com a legenda. A disposição paralela evita que séries binárias `0/1` se sobreponham. |
-| Observação | A série é calculada diretamente da vigência porque `Base Mensal` não possui o campo `Cliente`; o histórico completo é independente do período selecionado na página geral. |
+| Observação | A série combina os ciclos reconstruídos da vigência e do histórico porque `Base Mensal` não possui o campo `Cliente`; o histórico completo é independente do período selecionado na página geral. |
 
 ### 7.5 Serviço e Responsáveis
 
