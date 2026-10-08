@@ -610,6 +610,61 @@ function clientHistoryRows(rows: SheetRow[], referenceEnd: Date): ClientServiceH
   }).sort((a, b) => (a.status === "Ativo" ? -1 : 1) - (b.status === "Ativo" ? -1 : 1) || b.startDate.localeCompare(a.startDate) || a.service.localeCompare(b.service, "pt-BR"));
 }
 
+function splitHistoricalServices(value: unknown): string[] {
+  return asText(value).split(",").map((service) => service.trim()).filter(Boolean);
+}
+
+function historicalRowsForClient(historyRows: SheetRow[], vigenciaRows: SheetRow[], client: string, referenceEnd: Date): SheetRow[] {
+  const normalizedClient = normalize(client);
+  const clientVigencia = vigenciaRows.filter((row) => normalize(row["Cliente"]) === normalizedClient);
+  const metadataForService = (service: string): SheetRow => clientVigencia.find((row) => normalize(row["Serviço"]) === normalize(service)) ?? {};
+  const openByService = new Map<string, SheetRow[]>();
+  const reconstructed: SheetRow[] = [];
+  const rows = historyRows
+    .filter((row) => normalize(row["Nome Cliente"]) === normalizedClient)
+    .sort((a, b) => (toDate(a["Data/Hora"])?.getTime() ?? 0) - (toDate(b["Data/Hora"])?.getTime() ?? 0));
+
+  rows.forEach((row) => {
+    const operation = normalize(row["Tipo de Operação"]);
+    const eventDate = toDate(row["Data/Hora"]) ?? toDate(row["Data Ativação"]) ?? toDate(row["Data Desativação"]);
+    const startDate = toDate(row["Data Ativação"]) ?? (operation.includes("CONTRAT") ? eventDate : null);
+    const endDate = toDate(row["Data Desativação"]) ?? ((operation.includes("CANCEL") || operation.includes("FIM PREVISTO")) ? eventDate : null);
+    if (!eventDate || eventDate > referenceEnd) return;
+
+    splitHistoricalServices(row["Serviço(s) Afetado(s)"]).forEach((service) => {
+      const serviceKey = normalize(service);
+      const metadata = metadataForService(service);
+      const makeRow = (start: Date | null, end: Date | null): SheetRow => ({
+        ...metadata,
+        Cliente: client,
+        Serviço: service,
+        Início: start ? toDateInput(start) : "",
+        Fim: end ? toDateInput(end) : "",
+      });
+
+      if (operation.includes("CONTRAT")) {
+        const created = makeRow(startDate, null);
+        reconstructed.push(created);
+        openByService.set(serviceKey, [...(openByService.get(serviceKey) ?? []), created]);
+        return;
+      }
+
+      if (operation.includes("CANCEL") || operation.includes("FIM PREVISTO")) {
+        const openRows = openByService.get(serviceKey) ?? [];
+        const open = openRows.at(-1);
+        if (open) {
+          open["Fim"] = endDate ? toDateInput(endDate) : "";
+          openByService.set(serviceKey, openRows.slice(0, -1));
+        } else {
+          reconstructed.push(makeRow(startDate, endDate));
+        }
+      }
+    });
+  });
+
+  return reconstructed;
+}
+
 function clientActiveSeries(history: ClientServiceHistory[], referenceEnd: Date): ClientActiveSeriesPoint[] {
   const starts = history.map((item) => toDate(item.startDate)).filter((value): value is Date => Boolean(value));
   if (!starts.length) return [];
@@ -646,21 +701,28 @@ export function buildClientOptions(data: DashboardSheets): string[] {
     const key = normalize(value);
     if (key && !clients.has(key)) clients.set(key, value);
   });
+  data.historicoServicos.forEach((row) => {
+    const value = asText(row["Nome Cliente"]);
+    const key = normalize(value);
+    if (key && !clients.has(key)) clients.set(key, value);
+  });
   return Array.from(clients.values()).sort((a, b) => a.localeCompare(b, "pt-BR"));
 }
 
 export function deriveClientDetail(data: DashboardSheets, client: string): ClientDetail | null {
   const normalizedClient = normalize(client);
   if (!normalizedClient) return null;
-  const allRows = [...data.fatos, ...data.vigencia, ...data.baseMensal];
-  const latestDate = latestDateFromRows(allRows, ["Data", "Ano-Mês", "Início", "Fim"]) ?? new Date();
+  const allRows = [...data.fatos, ...data.vigencia, ...data.baseMensal, ...data.historicoServicos];
+  const latestDate = latestDateFromRows(allRows, ["Data", "Ano-Mês", "Início", "Fim", "Data/Hora", "Data Ativação", "Data Desativação"]) ?? new Date();
   const range = { start: new Date("1900-01-01T00:00:00Z"), end: latestDate };
   const clientVigencia = data.vigencia.filter((row) => normalize(row["Cliente"]) === normalizedClient);
-  const historyRows = clientVigencia.filter((row) => {
+  const currentHistoryRows = clientVigencia.filter((row) => {
     const start = toDate(row["Início"]);
     const end = toDate(row["Fim"]);
     return Boolean((start && start <= range.end) || (!start && end && end <= range.end));
   });
+  const reconstructedHistoryRows = historicalRowsForClient(data.historicoServicos, clientVigencia, client, range.end);
+  const historyRows = [...currentHistoryRows, ...reconstructedHistoryRows];
   const serviceHistory = clientHistoryRows(historyRows, range.end);
   if (!serviceHistory.length) return null;
 
@@ -739,11 +801,16 @@ export function filterDataByAllowedServices(data: DashboardSheets, allowedServic
     if (!service) return false;
     return allowedNormalized.has(normalize(service));
   };
+  const historicalServiceMatches = (row: SheetRow) => {
+    const services = splitHistoricalServices(row["Serviço(s) Afetado(s)"]);
+    return services.some((service) => allowedNormalized.has(normalize(service)));
+  };
   return {
     fatos: data.fatos.filter(serviceMatches),
     vigencia: data.vigencia.filter(serviceMatches),
     baseMensal: data.baseMensal.filter(serviceMatches),
     posicaoGeografica: data.posicaoGeografica,
+    historicoServicos: data.historicoServicos.filter(historicalServiceMatches),
   };
 }
 

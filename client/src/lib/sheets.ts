@@ -6,6 +6,7 @@ export interface DashboardSheets {
   vigencia: SheetRow[];
   baseMensal: SheetRow[];
   posicaoGeografica: SheetRow[];
+  historicoServicos: SheetRow[];
 }
 
 import initialPayload from "../initial-data.json";
@@ -17,11 +18,12 @@ export function getInitialSheets(): DashboardSheets {
     vigencia: raw["Vigência CNPJ x Serviço"] ?? [],
     baseMensal: raw["Base Mensal"] ?? [],
     posicaoGeografica: raw["posicao geografica"] ?? [],
+    historicoServicos: raw["Histórico de Serviços"] ?? [],
   };
 }
 
 export function isSuspiciouslyPartial(previous: DashboardSheets, next: DashboardSheets): boolean {
-  const keys: Array<keyof DashboardSheets> = ["fatos", "vigencia", "baseMensal", "posicaoGeografica"];
+  const keys: Array<keyof DashboardSheets> = ["fatos", "vigencia", "baseMensal", "posicaoGeografica", "historicoServicos"];
   return keys.some((key) => {
     const previousCount = previous[key].length;
     const nextCount = next[key].length;
@@ -32,7 +34,7 @@ export function isSuspiciouslyPartial(previous: DashboardSheets, next: Dashboard
 }
 
 export function mergeDashboardSheets(previous: DashboardSheets, next: DashboardSheets): { data: DashboardSheets; partialSheets: Array<keyof DashboardSheets> } {
-  const keys: Array<keyof DashboardSheets> = ["fatos", "vigencia", "baseMensal", "posicaoGeografica"];
+  const keys: Array<keyof DashboardSheets> = ["fatos", "vigencia", "baseMensal", "posicaoGeografica", "historicoServicos"];
   const partialSheets = keys.filter((key) => {
     const previousCount = previous[key].length;
     const nextCount = next[key].length;
@@ -44,6 +46,7 @@ export function mergeDashboardSheets(previous: DashboardSheets, next: DashboardS
       vigencia: partialSheets.includes("vigencia") ? previous.vigencia : next.vigencia,
       baseMensal: partialSheets.includes("baseMensal") ? previous.baseMensal : next.baseMensal,
       posicaoGeografica: partialSheets.includes("posicaoGeografica") ? previous.posicaoGeografica : next.posicaoGeografica,
+      historicoServicos: partialSheets.includes("historicoServicos") ? previous.historicoServicos : next.historicoServicos,
     },
     partialSheets,
   };
@@ -121,13 +124,14 @@ async function fetchSheet(sheetName: string): Promise<SheetRow[]> {
 }
 
 export async function fetchDashboardSheets(): Promise<DashboardSheets> {
-  const [fatos, vigencia, baseMensal, posicaoGeografica] = await Promise.all([
+  const [fatos, vigencia, baseMensal, posicaoGeografica, historicoServicos] = await Promise.all([
     fetchSheet("Fatos Movimentacao"),
     fetchSheet("Vigência CNPJ x Serviço"),
     fetchSheet("Base Mensal"),
     fetchSheet("posicao geografica"),
+    fetchSheet("Histórico de Serviços"),
   ]);
-  return { fatos, vigencia, baseMensal, posicaoGeografica };
+  return { fatos, vigencia, baseMensal, posicaoGeografica, historicoServicos };
 }
 
 export const spreadsheetSource = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
