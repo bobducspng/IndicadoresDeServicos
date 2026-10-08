@@ -22,6 +22,7 @@ import {
   ArrowDown,
   ArrowUpDown,
   Layers3,
+  MessageCircle,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
@@ -35,6 +36,7 @@ interface UserManagementModalProps {
 
 type UserTableColumn = "name" | "email" | "role" | "services" | "status" | "addedBy" | "actions";
 type AccessRole = "user" | "admin" | "super_admin";
+type InviteTarget = { name: string; email: string };
 
 const ACCESS_ROLE_LABELS: Record<AccessRole, string> = {
   user: "Usuário",
@@ -158,6 +160,7 @@ export function UserManagementModal({
   const [sortKey, setSortKey] = useState<"name" | "email" | "status">("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [copiedEmailId, setCopiedEmailId] = useState<number | null>(null);
+  const [inviteTarget, setInviteTarget] = useState<InviteTarget | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<UserTableColumn, number>>(defaultColumnWidths);
   const [isResizingColumn, setIsResizingColumn] = useState(false);
   const tableRef = useRef<HTMLTableElement | null>(null);
@@ -178,12 +181,13 @@ export function UserManagementModal({
   });
 
   const addMutation = trpc.accessControl.add.useMutation({
-    onSuccess: () => {
+    onSuccess: (createdUser) => {
       setEmail("");
       setName("");
       setRole("user");
       setNewAllowedServices([]);
       setFormError(null);
+      setInviteTarget({ name: createdUser.name, email: createdUser.email });
       setSuccessMsg("E-mail autorizado com sucesso!");
       setTimeout(() => setSuccessMsg(null), 3500);
       utils.accessControl.list.invalidate();
@@ -434,6 +438,35 @@ export function UserManagementModal({
     }
   };
 
+  const handleNotifyInChat = async () => {
+    if (!inviteTarget) return;
+
+    const chatWindow = window.open("https://chat.google.com/", "_blank", "noopener,noreferrer");
+    const accessUrl = window.location.origin;
+    const message = [
+      `Olá, ${inviteTarget.name}!`,
+      "",
+      "Seu acesso ao Indicadores de Serviços foi liberado.",
+      `E-mail autorizado: ${inviteTarget.email}`,
+      `Acesse o sistema: ${accessUrl}`,
+      "",
+      "Entre usando o botão ‘Entrar com Google SSO’ e selecione esse e-mail na conta Google.",
+    ].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(message);
+      setFormError(null);
+      setSuccessMsg(
+        chatWindow
+          ? "Mensagem copiada. Cole-a na conversa do Google Chat."
+          : "Mensagem copiada. O navegador bloqueou a nova aba do Google Chat; permita pop-ups e tente novamente.",
+      );
+      setTimeout(() => setSuccessMsg(null), 4500);
+    } catch {
+      setFormError("O Google Chat foi aberto, mas não foi possível copiar a mensagem neste navegador.");
+    }
+  };
+
   const handleStartNameEdit = (id: number, currentName: string) => {
     setFormError(null);
     setSuccessMsg(null);
@@ -648,6 +681,25 @@ export function UserManagementModal({
               </button>
             </div>
           </form>
+
+          {inviteTarget && (
+            <section className="chat-invite-panel" aria-live="polite">
+              <div className="chat-invite-copy">
+                <div className="chat-invite-icon" aria-hidden="true">
+                  <MessageCircle size={17} />
+                </div>
+                <div>
+                  <strong>Acesso cadastrado</strong>
+                  <span>{inviteTarget.name} · {inviteTarget.email}</span>
+                  <small>A mensagem será copiada para você colar na conversa do Google Chat.</small>
+                </div>
+              </div>
+              <button type="button" className="btn-chat-invite" onClick={handleNotifyInChat}>
+                <MessageCircle size={15} />
+                <span>Avisar pelo Google Chat</span>
+              </button>
+            </section>
+          )}
 
           {/* Lista de Usuários Autorizados */}
           <div className="users-list-section">
