@@ -1,8 +1,8 @@
 # Manual de Indicadores e Gráficos
 
 **Projeto:** Indicadores de Serviços  
-**Versão do manual:** 3.7
-**Atualizado em:** 21/09/2026
+**Versão do manual:** 3.8
+**Atualizado em:** 08/10/2026
 **Responsável:** Manus AI
 
 ## 1. Objetivo
@@ -15,7 +15,7 @@ A fonte de dados é a planilha pública compartilhada pela equipe. A aplicação
 
 ## 2. Visão geral da arquitetura de dados
 
-A aplicação carrega quatro abas da planilha em cada atualização. Os nomes abaixo são os nomes exatos utilizados no código e devem ser preservados para que a leitura automática funcione.
+A aplicação carrega cinco abas da planilha em cada atualização. Os nomes abaixo são os nomes exatos utilizados no código e devem ser preservados para que a leitura automática funcione.
 
 | Aba do Google Sheets | Finalidade no painel | Situação atual |
 |---|---|---|
@@ -23,6 +23,7 @@ A aplicação carrega quatro abas da planilha em cada atualização. Os nomes ab
 | `Vigência CNPJ x Serviço` | Base de vigência dos serviços por cliente, CNPJ, marca, localização e situação. Alimenta carteira, serviços, LTV, mapa e tabela. | Principal fonte dos indicadores de carteira. |
 | `Base Mensal` | Série mensal consolidada de clientes, serviços, entradas, saídas e churn. | Carregada e utilizada para descobrir anos e a data mais recente; os gráficos atuais recalculam as métricas diretamente das bases de fatos e vigência. |
 | `posicao geografica` | Cadastro auxiliar de região geográfica, cidade e UF. | Carregada para disponibilidade futura; a métrica atual do mapa utiliza `Cidade` e `Estado` da aba `Vigência CNPJ x Serviço`. |
+| `Histórico de Serviços` | Contratações, cancelamentos e ciclos anteriores por cliente. | Utilizada na reconstrução do histórico completo da página Por Cliente. |
 
 ### 2.1 Campos identificados por aba
 
@@ -35,7 +36,7 @@ A aplicação carrega quatro abas da planilha em cada atualização. Os nomes ab
 
 ## 3. Atualização e fluxo de leitura
 
-O botão **Reconectar** consulta novamente as quatro abas públicas. A tela inicia com um snapshot local para aparecer imediatamente e, em seguida, substitui os dados pelo resultado mais recente da planilha quando a consulta termina.
+O botão **Reconectar** consulta novamente as cinco abas públicas. A tela inicia com um snapshot local para aparecer imediatamente e, em seguida, substitui os dados pelo resultado mais recente da planilha quando a consulta termina.
 
 Os dados são consultados sem credenciais privadas por meio do endereço público da planilha. Se a planilha deixar de estar publicada ou sofrer alteração de nome nas abas, a atualização poderá falhar.
 
@@ -266,18 +267,7 @@ Nos cards, **serviços no histórico** representa nomes de serviços únicos. No
 
 O histórico considera todos os serviços iniciados até a data de referência mais recente da base, sem recorte de período ou filtros globais. Isso garante que a página represente o histórico integral do cliente.
 
-### 7.4 Evolução mensal dos serviços ativos
-
-| Item | Descrição |
-|---|---|
-| Aba(s) | `Vigência CNPJ x Serviço` e `Histórico de Serviços` |
-| Campos | Na vigência: `Cliente`, `Serviço`, `Início`, `Fim`; no histórico: `Nome Cliente`, `Serviço(s) Afetado(s)`, `Tipo de Operação`, `Data Ativação`, `Data Desativação` |
-| Granularidade | Mês e serviço distinto. |
-| Regra | Para cada mês desde o primeiro serviço do cliente até a data de referência, calcula cada serviço separadamente: o início já deve ter ocorrido e o fim ainda não pode ter ocorrido no último dia do mês. |
-| Exibição | Cada serviço ocupa uma faixa horizontal própria, com linha suavizada entre o estado inativo e ativo, pontos mensais, rótulo lateral e cor consistente com a legenda. A disposição paralela evita que séries binárias `0/1` se sobreponham. |
-| Observação | A série combina os ciclos reconstruídos da vigência e do histórico porque `Base Mensal` não possui o campo `Cliente`; o histórico completo é independente do período selecionado na página geral. |
-
-### 7.5 Serviço e Responsáveis
+### 7.4 Serviço e Responsáveis
 
 | Item | Descrição |
 |---|---|
@@ -287,7 +277,7 @@ O histórico considera todos os serviços iniciados até a data de referência m
 | Exibição | Lista cronológica reversa com a data, o nome do serviço e o responsável exibido logo abaixo do serviço. |
 | Operação Assistida | Quando o movimento indica cancelamento, o texto é convertido para `Finalização do período` e `Serviço concluído`. Não é apresentado como cancelamento. |
 
-### 7.6 Detalhamento dos serviços
+### 7.5 Detalhamento dos serviços
 
 | Coluna | Fonte ou regra |
 |---|---|
@@ -432,6 +422,7 @@ Para administradores autenticados, o menu lateral esquerdo exibe o botão **Cada
 | 3.7 | 21/09/2026 | Redesign visual do histórico mensal: serviços agora aparecem em faixas paralelas, com linhas suavizadas entre os estados ativo/inativo, rótulos laterais e guias independentes para evitar sobreposição de séries binárias. |
 | 3.4 | 18/09/2026 | O painel `Movimentações do cliente` foi renomeado para `Serviço e Responsáveis` e simplificado para exibir somente data, serviço e responsável, removendo movimento, evento e clube da apresentação. |
 | 3.5 | 18/09/2026 | Criado o perfil Super Administrador (com exclusividade no botão Fonte Sheets), restrição de novos cadastros ao domínio @vena.app.br mantendo contas pré-existentes, formulário de cadastro vertical sem campo de foto, seletor de serviços padrão dashboard e filtro de perfis unificado. |
+| 3.8 | 08/10/2026 | Removido o gráfico `HISTÓRICO MENSAL · Evolução dos serviços ativos` da página Por Cliente por duplicar informações já apresentadas no painel `Histórico dos serviços`; o cálculo, teste e estilos exclusivos da série mensal também foram removidos. |
 
 ## Referências
 
