@@ -3506,3 +3506,89 @@
   margin-top: 1px;
   color: #fb7185;
 }
+
+/* Convite pós-cadastro: copiar a mensagem e abrir o Google Chat sem enviar automaticamente. */
+.chat-invite-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 15px;
+  border: 1px solid rgba(47, 125, 255, .32);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(47, 125, 255, .12), rgba(25, 198, 163, .06));
+}
+.chat-invite-copy {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 10px;
+}
+.chat-invite-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 31px;
+  height: 31px;
+  flex: 0 0 31px;
+  border: 1px solid rgba(47, 125, 255, .34);
+  border-radius: 9px;
+  color: #8db8ff;
+  background: rgba(47, 125, 255, .14);
+}
+.chat-invite-copy > div:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+.chat-invite-copy strong {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+.chat-invite-copy span,
+.chat-invite-copy small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-invite-copy small { color: var(--muted-2); }
+.btn-chat-invite {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  flex: 0 0 auto;
+  gap: 7px;
+  padding: 0 13px;
+  border: 1px solid rgba(47, 125, 255, .52);
+  border-radius: 9px;
+  color: #dbeafe;
+  background: rgba(37, 99, 235, .32);
+  font-size: 10.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+.btn-chat-invite:hover {
+  border-color: rgba(47, 125, 255, .78);
+  background: rgba(37, 99, 235, .5);
+  transform: translateY(-1px);
+}
+.btn-chat-invite:active { transform: scale(.98); }
+.btn-chat-invite:focus-visible {
+  outline: 2px solid rgba(141, 184, 255, .9);
+  outline-offset: 2px;
+}
+@media (max-width: 680px) {
+  .chat-invite-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .chat-invite-copy span,
+  .chat-invite-copy small { white-space: normal; overflow-wrap: anywhere; }
+  .btn-chat-invite { width: 100%; }
+}
