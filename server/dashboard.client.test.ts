@@ -39,6 +39,71 @@ describe("deriveClientDetail", () => {
     expect(detail?.metrics.activeServices).toBe(0);
   });
 
+  it("trata Spot F360 concluído no pipe 302416833 como encerrado, não cancelado", () => {
+    const detail = deriveClientDetail(sheetsFrom([
+      {
+        Cliente: "Cliente Spot",
+        Serviço: "Spot F360",
+        Início: "2026-01-10",
+        Fim: "",
+        CNPJ: "123",
+        Marca: "O Boticário",
+      },
+    ], [
+      {
+        "Nome Cliente": "Cliente Spot",
+        "Tipo de Operação": "Contratação",
+        "Serviço(s) Afetado(s)": "Spot F360",
+        "Data/Hora": "2026-01-10",
+        "Data Ativação": "2026-01-10",
+        "Data Desativação": "",
+        "Pipe ID": "302416833",
+      },
+      {
+        "Nome Cliente": "Cliente Spot",
+        "Tipo de Operação": "Concluído",
+        "Serviço(s) Afetado(s)": "Spot F360",
+        "Data/Hora": "2026-09-20",
+        "Data Ativação": "",
+        "Data Desativação": "2026-09-20",
+        "Pipe ID": "302416833",
+      },
+    ]), "Cliente Spot");
+
+    expect(detail?.serviceHistory).toHaveLength(1);
+    expect(detail?.serviceHistory[0]).toMatchObject({
+      service: "Spot F360",
+      startDate: "2026-01-10",
+      endDate: "2026-09-20",
+      status: "Encerrado",
+    });
+    expect(detail?.metrics.closedServices).toBe(1);
+    expect(detail?.metrics.activeServices).toBe(0);
+  });
+
+  it("reconhece a etapa Concluído na vigência do Spot F360 mesmo sem Fim preenchido", () => {
+    const detail = deriveClientDetail(sheetsFrom([
+      {
+        Cliente: "Cliente Spot Etapa",
+        Serviço: "Spot F360",
+        Início: "2026-08-01",
+        Fim: "",
+        Data: "2026-09-20",
+        Etapa: "Concluído",
+        "Pipe ID": "302416833",
+        CNPJ: "456",
+      },
+    ]), "Cliente Spot Etapa");
+
+    expect(detail?.serviceHistory[0]).toMatchObject({
+      service: "Spot F360",
+      endDate: "2026-09-20",
+      status: "Encerrado",
+    });
+    expect(detail?.metrics.activeServices).toBe(0);
+    expect(detail?.metrics.closedServices).toBe(1);
+  });
+
   it("mantém ativo um serviço cujo término ainda é posterior à referência", () => {
     const detail = deriveClientDetail(sheetsFrom([
       {
@@ -177,6 +242,33 @@ describe("distribuição por serviço", () => {
       label: "Mentoria de sucessores",
       value: 1,
     }));
+  });
+});
+
+describe("encerramento de Spot F360", () => {
+  it("não contabiliza a finalização do Spot F360 como cancelamento", () => {
+    const snapshot = deriveSnapshot({
+      fatos: [{
+        Cliente: "Cliente Spot",
+        Serviço: "Spot F360",
+        Data: "2026-09-20",
+        "Tipo Movimentação": "Cancelamento Total",
+        "Evento Cliente": "Cliente perdido",
+      }],
+      vigencia: [],
+      baseMensal: [],
+      posicaoGeografica: [],
+      historicoServicos: [],
+    }, {
+      regions: [],
+      services: [],
+      brands: [],
+      year: "all",
+      period: "last6",
+    });
+
+    expect(snapshot.cancelledClients).toHaveLength(0);
+    expect(snapshot.timeline.reduce((sum, point) => sum + point.cancelledServices, 0)).toBe(0);
   });
 });
 
