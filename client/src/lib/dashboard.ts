@@ -319,16 +319,17 @@ function dateInside(value: unknown, start: Date, end: Date): boolean {
 
 function overlapsPeriod(row: SheetRow, start: Date, end: Date): boolean {
   const rowStart = toDate(row["Início"]);
-  const rowEnd = toDate(row["Fim"]);
+  const rowEnd = fixedTermEndDate(row);
   if (!rowStart && !rowEnd) return true;
   return (rowStart ?? new Date("1900-01-01T00:00:00Z")) <= end && (rowEnd ?? new Date("2999-12-31T23:59:59Z")) >= start;
 }
 
 function activeAtEnd(row: SheetRow, end: Date): boolean {
   const rowStart = toDate(row["Início"]);
-  const rowEnd = toDate(row["Fim"]);
+  const rowEnd = fixedTermEndDate(row);
   if (rowStart && rowStart > end) return false;
   if (rowEnd && rowEnd < end) return false;
+  if (isFixedTermCompletionStage(row)) return false;
   const status = normalize(row["Situação"]);
   return !rowEnd || status.startsWith("ATIVO") || rowEnd >= end;
 }
@@ -351,8 +352,56 @@ function formatDetail(row: SheetRow): string {
   return `${first} · ${service}`;
 }
 
+const SPOT_F360_PIPE_ID = "302416833";
+const PIPE_ID_FIELDS = ["Pipe", "Pipe ID", "ID Pipe", "ID do Pipe", "Pipeline ID"];
+
+function isSpotF360(row: SheetRow): boolean {
+  const service = normalize(row["Serviço"] ?? row["Serviço(s) Afetado(s)"]);
+  if (!service.includes("SPOT F360")) return false;
+
+  // As abas públicas atuais não expõem o identificador do pipe. Quando ele
+  // existir em uma sincronização futura, valide-o sem quebrar o formato atual.
+  const pipeValue = PIPE_ID_FIELDS.map((field) => asText(row[field])).find(Boolean);
+  if (!pipeValue) return true;
+  const digits = pipeValue.replace(/\D/g, "");
+  return !digits || digits === SPOT_F360_PIPE_ID;
+}
+
 function isOperationAssisted(row: SheetRow): boolean {
   return normalize(row["Serviço"]).includes("OPERACAO ASSISTIDA");
+}
+
+function isFixedTermService(row: SheetRow): boolean {
+  return isOperationAssisted(row) || isSpotF360(row);
+}
+
+function isFixedTermCompletionStage(row: SheetRow): boolean {
+  if (!isFixedTermService(row)) return false;
+  const stageFields = ["Etapa", "Etapa Pipefy", "Etapa do Pipefy", "Fase", "Stage", "Status", "Situação"];
+  return stageFields.some((field) => normalize(row[field]).includes("CONCLUID"));
+}
+
+function fixedTermEndDate(row: SheetRow): Date | null {
+  const explicitEnd = toDate(row["Fim"]);
+  if (explicitEnd) return explicitEnd;
+  if (!isFixedTermService(row)) return null;
+  return toDate(row["Data Desativação"])
+    ?? toDate(row["Data Conclusão"])
+    ?? (isFixedTermCompletionStage(row) ? toDate(row["Data"]) : null);
+}
+
+function isFixedTermCompletion(row: SheetRow): boolean {
+  if (!isFixedTermService(row)) return false;
+  const movement = normalize(row["Tipo Movimentação"]);
+  const event = normalize(row["Evento Cliente"]);
+  const source = normalize(row["Fonte"]);
+  return movement.includes("CANCELAMENTO")
+    || movement.includes("CONCLUID")
+    || event.includes("CONCLUID")
+    || event === "CLIENTE PERDIDO"
+    || source.includes("FIM PREVISTO")
+    || source.includes("CONCLUID")
+    || isFixedTermCompletionStage(row);
 }
 
 function movementList(rows: SheetRow[], type: "new" | "cancelled"): ClientMovement[] {
@@ -361,7 +410,7 @@ function movementList(rows: SheetRow[], type: "new" | "cancelled"): ClientMoveme
     const movement = normalize(row["Tipo Movimentação"]);
     return type === "new"
       ? event === "NOVO CLIENTE" || movement === "AQUISICAO" || movement === "EXPANSAO"
-      : !isOperationAssisted(row) && (event === "CLIENTE PERDIDO" || movement.includes("CANCELAMENTO"));
+      : !isFixedTermService(row) && (event === "CLIENTE PERDIDO" || movement.includes("CANCELAMENTO"));
   });
   const byClient = new Map<string, ClientMovement>();
   selected.forEach((row) => {
@@ -423,7 +472,7 @@ function timeline(rows: SheetRow[], start: Date, end: Date): TimelinePoint[] {
     const movement = normalize(row["Tipo Movimentação"]);
     const current = months.get(key) ?? { contractedServices: 0, cancelledServices: 0 };
     if (event === "NOVO CLIENTE" || movement === "AQUISICAO" || movement === "EXPANSAO") current.contractedServices += 1;
-    if (!isOperationAssisted(row) && (event === "CLIENTE PERDIDO" || movement.includes("CANCELAMENTO"))) current.cancelledServices += 1;
+    if (!isFixedTermService(row) && (event === "CLIENTE PERDIDO" || movement.includes("CANCELAMENTO"))) current.cancelledServices += 1;
     months.set(key, current);
   });
   return Array.from(months.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => ({
@@ -562,7 +611,7 @@ function clientHistoryRows(rows: SheetRow[], referenceEnd: Date): ClientServiceH
   rows.forEach((row) => {
     const service = asText(row["Serviço"]);
     if (!service) return;
-    const key = `${normalize(service)}|${toDateInput(row["Início"])}|${toDateInput(row["Fim"])}`;
+    const key = `${normalize(service)}|${toDateInput(row["Início"])}|${toDateInput(fixedTermEndDate(row))}`;
     byServicePeriod.set(key, [...(byServicePeriod.get(key) ?? []), row]);
   });
 
@@ -570,14 +619,15 @@ function clientHistoryRows(rows: SheetRow[], referenceEnd: Date): ClientServiceH
     const first = serviceRows[0];
     const service = asText(first["Serviço"]);
     const starts = serviceRows.map((row) => toDate(row["Início"])).filter((value): value is Date => Boolean(value));
-    const ends = serviceRows.map((row) => toDate(row["Fim"])).filter((value): value is Date => Boolean(value));
+    const ends = serviceRows.map((row) => fixedTermEndDate(row)).filter((value): value is Date => Boolean(value));
     const start = starts.length ? new Date(Math.min(...starts.map((value) => value.getTime()))) : null;
     const end = ends.length ? new Date(Math.max(...ends.map((value) => value.getTime()))) : null;
     const isAssisted = isOperationAssisted(first);
+    const hasCompletionStage = serviceRows.some(isFixedTermCompletionStage);
     // Uma data de fim preenchida encerra o ciclo na visão histórica do cliente.
-    // A exceção é Operação Assistida: seu encerramento representa a finalização
-    // prevista do período, por isso permanece identificado separadamente.
-    const isActive = Boolean(start && start <= referenceEnd && (!end || end > referenceEnd));
+    // Para Spot F360, a etapa Concluído tem o mesmo efeito mesmo antes de a
+    // integração preencher Fim/Data Desativação na aba histórica.
+    const isActive = Boolean(start && start <= referenceEnd && !hasCompletionStage && (!end || end > referenceEnd));
     const status: ClientServiceHistory["status"] = isAssisted ? "Operação Assistida" : isActive ? "Ativo" : "Encerrado";
     const durationDays = end ? daysBetween(start, end) : daysBetween(start, referenceEnd);
     const cnpjs = new Set(serviceRows.map((row) => asText(row["CNPJ"])).filter(Boolean)).size;
@@ -614,7 +664,7 @@ function historicalRowsForClient(historyRows: SheetRow[], vigenciaRows: SheetRow
     const operation = normalize(row["Tipo de Operação"]);
     const eventDate = toDate(row["Data/Hora"]) ?? toDate(row["Data Ativação"]) ?? toDate(row["Data Desativação"]);
     const startDate = toDate(row["Data Ativação"]) ?? (operation.includes("CONTRAT") ? eventDate : null);
-    const endDate = toDate(row["Data Desativação"]) ?? ((operation.includes("CANCEL") || operation.includes("FIM PREVISTO")) ? eventDate : null);
+    const endDate = toDate(row["Data Desativação"]) ?? ((operation.includes("CANCEL") || operation.includes("FIM PREVISTO") || operation.includes("CONCLUID")) ? eventDate : null);
     if (!eventDate || eventDate > referenceEnd) return;
 
     splitHistoricalServices(row["Serviço(s) Afetado(s)"]).forEach((service) => {
@@ -635,7 +685,7 @@ function historicalRowsForClient(historyRows: SheetRow[], vigenciaRows: SheetRow
         return;
       }
 
-      if (operation.includes("CANCEL") || operation.includes("FIM PREVISTO")) {
+      if (operation.includes("CANCEL") || operation.includes("FIM PREVISTO") || operation.includes("CONCLUID")) {
         const openRows = openByService.get(serviceKey) ?? [];
         const open = openRows.at(-1);
         if (open) {
@@ -675,11 +725,21 @@ export function deriveClientDetail(data: DashboardSheets, client: string): Clien
   const clientVigencia = data.vigencia.filter((row) => normalize(row["Cliente"]) === normalizedClient);
   const currentHistoryRows = clientVigencia.filter((row) => {
     const start = toDate(row["Início"]);
-    const end = toDate(row["Fim"]);
+    const end = fixedTermEndDate(row);
     return Boolean((start && start <= range.end) || (!start && end && end <= range.end));
   });
   const reconstructedHistoryRows = historicalRowsForClient(data.historicoServicos, clientVigencia, client, range.end);
-  const historyRows = [...currentHistoryRows, ...reconstructedHistoryRows];
+  const historicallyClosedCycles = new Set(
+    reconstructedHistoryRows
+      .filter((row) => fixedTermEndDate(row))
+      .map((row) => `${normalize(row["Serviço"])}|${toDateInput(row["Início"])}`),
+  );
+  const reconciledCurrentRows = currentHistoryRows.filter((row) => {
+    if (fixedTermEndDate(row)) return true;
+    const cycleKey = `${normalize(row["Serviço"])}|${toDateInput(row["Início"])}`;
+    return !historicallyClosedCycles.has(cycleKey);
+  });
+  const historyRows = [...reconciledCurrentRows, ...reconstructedHistoryRows];
   const serviceHistory = clientHistoryRows(historyRows, range.end);
   if (!serviceHistory.length) return null;
 
@@ -699,12 +759,12 @@ export function deriveClientDetail(data: DashboardSheets, client: string): Clien
   const events = clientFatos
     .filter((row) => dateInside(row["Data"], range.start, range.end))
     .map((row) => {
-      const assistedClosure = isOperationAssisted(row) && normalize(row["Tipo Movimentação"]).includes("CANCELAMENTO");
+      const fixedTermClosure = isFixedTermCompletion(row);
       return {
         date: toDateInput(row["Data"]),
         service: asText(row["Serviço"]) || "—",
-        movement: assistedClosure ? "Finalização do período" : asText(row["Tipo Movimentação"]) || "—",
-        event: assistedClosure ? "Serviço concluído" : asText(row["Evento Cliente"]) || "—",
+        movement: fixedTermClosure ? "Finalização do período" : asText(row["Tipo Movimentação"]) || "—",
+        event: fixedTermClosure ? "Serviço concluído" : asText(row["Evento Cliente"]) || "—",
         club: asText(row["Clube"]) || "—",
         responsible: asText(row["Responsável"]) || "—",
       } satisfies ClientEventPoint;
