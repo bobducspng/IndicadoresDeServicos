@@ -1,8 +1,8 @@
 # Manual de Indicadores e Gráficos
 
 **Projeto:** Indicadores de Serviços  
-**Versão do manual:** 3.8
-**Atualizado em:** 08/10/2026
+**Versão do manual:** 3.9
+**Atualizado em:** 09/10/2026
 **Responsável:** Manus AI
 
 ## 1. Objetivo
@@ -139,7 +139,7 @@ A lista mantém uma única entrada por cliente e conserva a contratação mais r
 | Campos | `Cliente`, `Data`, `Evento Cliente`, `Tipo Movimentação`, `Serviço`, `Clube`, `Região` |
 | Granularidade | Cliente único. |
 | Regra de inclusão | Inclui `Evento Cliente = CLIENTE PERDIDO` ou valores de `Tipo Movimentação` que contenham `CANCELAMENTO`. |
-| Exceção | Registros do serviço `Operação Assistida` não são tratados como cancelamento, pois o serviço possui início e fim próprios. |
+| Exceção | Registros dos serviços `Operação Assistida` e `Spot F360` não são tratados como cancelamento quando representam finalização do ciclo; `Spot F360` usa o pipe `302416833`. |
 | Data exibida | `Data` da movimentação. |
 | Ordenação | Mais recente para mais antigo. |
 | Filtros | Segmento, marca/clube, serviço, ano e período. |
@@ -152,7 +152,7 @@ A lista mantém uma única entrada por cliente e conserva a contratação mais r
 | Campos | `Data`, `Evento Cliente`, `Tipo Movimentação`, `Serviço` |
 | Granularidade | Serviço movimentado por mês. |
 | Contratados | Soma registros com `NOVO CLIENTE`, `AQUISICAO` ou `EXPANSAO`. |
-| Cancelados | Soma registros com `CLIENTE PERDIDO` ou `CANCELAMENTO`, exceto `Operação Assistida`. |
+| Cancelados | Soma registros com `CLIENTE PERDIDO` ou `CANCELAMENTO`, exceto finalizações de `Operação Assistida` e `Spot F360`. |
 | Eixo temporal | Todos os meses entre o início e o fim do período filtrado, inclusive meses sem movimentação. |
 | Interação | Ao passar o mouse, exibe mês, serviços contratados e serviços cancelados. |
 | Visual | Duas curvas suavizadas: verde para contratados e coral/vermelha para cancelados. |
@@ -248,7 +248,7 @@ A página **Por Cliente** possui um seletor próprio de cliente e apresenta o hi
 | **Tempo médio** | `Vigência CNPJ x Serviço` + `Histórico de Serviços` | `Serviço`, `Início`, `Fim`, `Data Ativação`, `Data Desativação` | Calcula a duração média dos ciclos históricos em dias. Serviços abertos usam a data de referência mais recente da base. |
 | **Relacionamento** | `Vigência CNPJ x Serviço` + `Histórico de Serviços` | `Início`, `Data Ativação` | Mede o período entre o primeiro início de serviço e a data final de referência, exibido em anos. |
 
-O resumo lateral também apresenta serviços encerrados, primeiro serviço, última movimentação e quantidade de serviços no recorte. **Encerrados** conta ciclos distintos com campo `Fim` preenchido até a data de referência, inclusive ciclos de `Operação Assistida`; isso representa conclusão do período, não cancelamento.
+O resumo lateral também apresenta serviços encerrados, primeiro serviço, última movimentação e quantidade de serviços no recorte. **Encerrados** conta ciclos distintos com campo `Fim` preenchido até a data de referência, inclusive ciclos de `Operação Assistida` e `Spot F360` concluídos; isso representa conclusão do período, não cancelamento.
 
 Nos cards, **serviços no histórico** representa nomes de serviços únicos. No Gantt e na tabela, ciclos separados do mesmo serviço continuam visíveis quando possuem datas de início ou fim diferentes.
 
@@ -260,7 +260,7 @@ Nos cards, **serviços no histórico** representa nomes de serviços únicos. No
 | Campos | Na vigência: `Cliente`, `Serviço`, `Início`, `Fim`, `Dias`, `CNPJ`, `Marca`, `Cidade`, `Estado`, `Região`; no histórico: `Nome Cliente`, `Serviço(s) Afetado(s)`, `Tipo de Operação`, `Data/Hora`, `Data Ativação`, `Data Desativação` |
 | Granularidade | Ciclo de contrato identificado por `Serviço + Início + Fim`. Linhas repetidas de CNPJ no mesmo período são agrupadas, contratos históricos são reconstruídos a partir das operações e recontratações ou períodos separados permanecem como linhas distintas. |
 | Paleta | Cada serviço usa a mesma paleta do gráfico `Distribuição por serviço`; ciclos do mesmo serviço mantêm a mesma cor. |
-| Status | O status aparece abaixo do nome: `Ativo`, `Encerrado` ou `Operação Assistida`. |
+| Status | O status aparece abaixo do nome: `Ativo`, `Encerrado` ou `Operação Assistida`. `Spot F360` passa para `Encerrado` quando a etapa concluída gera `Fim`/`Data Desativação`. |
 | Datas | Exibe início e fim; serviços abertos mostram `Em aberto`. |
 | Duração | Mostra dias para períodos curtos e anos fechados para contratos com pelo menos um ano. |
 | Ordenação | Serviços ativos primeiro; depois serviços encerrados por início mais recente. |
@@ -275,14 +275,14 @@ O histórico considera todos os serviços iniciados até a data de referência m
 | Campos | `Cliente`, `Data`, `Serviço`, `Tipo Movimentação`, `Evento Cliente`, `Clube`, `Responsável` |
 | Granularidade | Todos os eventos do cliente até a data de referência mais recente da base. |
 | Exibição | Lista cronológica reversa com a data, o nome do serviço e o responsável exibido logo abaixo do serviço. |
-| Operação Assistida | Quando o movimento indica cancelamento, o texto é convertido para `Finalização do período` e `Serviço concluído`. Não é apresentado como cancelamento. |
+| Finalização de ciclo | Quando o movimento indica cancelamento, `Concluído`, `Fim previsto` ou `Cliente perdido` para `Operação Assistida`/`Spot F360`, o texto é convertido para `Finalização do período` e `Serviço concluído`. Não é apresentado como cancelamento. |
 
 ### 7.5 Detalhamento dos serviços
 
 | Coluna | Fonte ou regra |
 |---|---|
 | Serviço | `Vigência CNPJ x Serviço`.`Serviço` |
-| Status | Calculado com `Início`, `Fim` e regra especial de `Operação Assistida`; sem `Fim` ou com término futuro é `Ativo`, com término atingido é `Encerrado`. |
+| Status | Calculado com `Início`, `Fim` e regra de ciclos com prazo: sem `Fim` ou com término futuro é `Ativo`; com término atingido é `Encerrado`. Para `Spot F360`, a operação `Concluído` no pipe `302416833` também fecha o ciclo. |
 | Início | `Início` |
 | Fim | `Fim`; quando vazio, `Em aberto`. |
 | Dias | `Dias` quando disponível; caso contrário, duração calculada entre início e fim ou data de referência. |
@@ -298,9 +298,11 @@ A tabela possui rolagem horizontal e vertical conforme o tamanho da carteira do 
 
 Os indicadores de cliente utilizam o campo `Cliente` deduplicado. Os indicadores de CNPJ utilizam o campo `CNPJ` deduplicado. Essas duas grandezas não devem ser somadas ou tratadas como equivalentes.
 
-### 8.2 Operação Assistida
+### 8.2 Operação Assistida e Spot F360
 
 O encerramento de `Operação Assistida` não representa cancelamento. Esse serviço possui duração própria e, por isso, é excluído da lista de cancelados e da série de cancelamentos da linha do tempo. Na visão individual, um ciclo com `Fim` preenchido é contado em **Encerrados**, enquanto um novo ciclo sem `Fim` permanece no histórico como `Operação Assistida` aberto.
+
+`Spot F360` segue a mesma regra quando o registro pertence ao pipe `302416833` e alcança a etapa `Concluído`: a operação fecha o ciclo, preenche ou reconstrói a data de fim e entra em **Encerrados**. Ela não entra em **Clientes cancelados** nem na série vermelha de cancelamentos. O cálculo reconhece `Concluído`, `Fim previsto`, `Data Desativação`/`Fim` e os campos opcionais de identificação do pipe quando forem disponibilizados pela sincronização.
 
 ### 8.3 Contratação, aquisição e expansão
 
@@ -423,6 +425,7 @@ Para administradores autenticados, o menu lateral esquerdo exibe o botão **Cada
 | 3.4 | 18/09/2026 | O painel `Movimentações do cliente` foi renomeado para `Serviço e Responsáveis` e simplificado para exibir somente data, serviço e responsável, removendo movimento, evento e clube da apresentação. |
 | 3.5 | 18/09/2026 | Criado o perfil Super Administrador (com exclusividade no botão Fonte Sheets), restrição de novos cadastros ao domínio @vena.app.br mantendo contas pré-existentes, formulário de cadastro vertical sem campo de foto, seletor de serviços padrão dashboard e filtro de perfis unificado. |
 | 3.8 | 08/10/2026 | Removido o gráfico `HISTÓRICO MENSAL · Evolução dos serviços ativos` da página Por Cliente por duplicar informações já apresentadas no painel `Histórico dos serviços`; o cálculo, teste e estilos exclusivos da série mensal também foram removidos. |
+| 3.9 | 09/10/2026 | `Spot F360` passou a seguir a regra de ciclo concluído do pipe `302416833`: etapa `Concluído`/data de fim gera status `Encerrado`, sem contabilizar cancelamento; a reconstrução histórica e os testes foram atualizados. |
 
 ## Referências
 
