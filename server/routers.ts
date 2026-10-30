@@ -1,9 +1,12 @@
+import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { COOKIE_NAME } from "@shared/const";
 import * as db from "./db";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { adminProcedure, publicProcedure, router } from "./_core/trpc";
+import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import { prepararPayloadParaUsuario } from "@shared/colaboradores";
+import { carregarColaboradores } from "./colaboradores";
 
 export const appRouter = router({
   system: systemRouter,
@@ -33,6 +36,26 @@ export const appRouter = router({
       const cookieOptions = getSessionCookieOptions(ctx.req);
       ctx.res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
       return { success: true } as const;
+    }),
+  }),
+  colaboradores: router({
+    /**
+     * Colaboradores e carteira (vínculos colaborador x cliente), já filtrados
+     * pelas permissões de quem pediu: serviços permitidos e telefone só para admin.
+     */
+    carteira: protectedProcedure.query(async ({ ctx }) => {
+      const email = ctx.user.email?.toLowerCase();
+      const allowed = email ? await db.getAllowedUserByEmail(email) : undefined;
+      if (!allowed || allowed.isActive !== 1) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso não autorizado." });
+      }
+
+      const restrito = allowed.role === "user" && allowed.allowedServices != null;
+      const payload = await carregarColaboradores();
+      return prepararPayloadParaUsuario(payload, {
+        role: allowed.role,
+        allowedServices: restrito ? db.parseAllowedServices(allowed.allowedServices) : null,
+      });
     }),
   }),
   accessControl: router({

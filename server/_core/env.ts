@@ -15,4 +15,8 @@ export const ENV = {
   googleRedirectUri: process.env.GOOGLE_REDIRECT_URI ?? "",
   googleAuthUri: process.env.GOOGLE_AUTH_URI ?? "",
   googleTokenUri: process.env.GOOGLE_TOKEN_URI ?? "",
+  // Visão "Por Colaborador": URL (Web App do Apps Script) e chave da API privada.
+  // Sem COLABORADORES_API_URL, o servidor devolve dados de exemplo.
+  colaboradoresApiUrl: process.env.COLABORADORES_API_URL ?? "",
+  colaboradoresApiKey: process.env.COLABORADORES_API_KEY ?? "",
 };
