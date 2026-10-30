@@ -24,14 +24,14 @@ const payload: ColaboradoresPayload = {
 
 describe("resolverFuncao", () => {
   it("mapeia os campos do Pipefy para serviço e grupo", () => {
-    expect(resolverFuncao("Receita 2")).toEqual({ servico: "BPO Operacional Receitas", grupo: "Operacional" });
+    expect(resolverFuncao("Receita 2")).toMatchObject({ servico: "BPO Operacional Receitas", grupo: "Operacional" });
     expect(resolverFuncao("Conciliação Bancaria").servico).toBe("BPO Controle/Tesouraria");
     expect(resolverFuncao("BPO Gerencial").grupo).toBe("Gerencial");
     expect(resolverFuncao("Suprimentos Outros").servico).toBe("BPO Suprimentos");
   });
 
   it("trata campo desconhecido como nome de serviço", () => {
-    expect(resolverFuncao("Operação Assistida")).toEqual({ servico: "Operação Assistida", grupo: "Outros" });
+    expect(resolverFuncao("Operação Assistida")).toEqual({ servico: "Operação Assistida", grupo: "Outros", servicos: ["Operação Assistida"] });
   });
 });
 
@@ -53,6 +53,19 @@ describe("prepararPayloadParaUsuario", () => {
     const r = prepararPayloadParaUsuario(payload, { role: "user", allowedServices: ["BPO Gerencial"] });
     expect(r.vinculos).toEqual([{ email: "ana@vena.app.br", cliente: "Cliente A", funcao: "BPO Gerencial" }]);
     expect(r.colaboradores.map((c) => c.email)).toEqual(["ana@vena.app.br"]);
+  });
+
+  it("o campo Recursos Humanos vale para os três serviços antigos de RH", () => {
+    const comRh: ColaboradoresPayload = {
+      ...payload,
+      vinculos: [{ email: "ana@vena.app.br", cliente: "Cliente C", funcao: "Recursos Humanos" }],
+    };
+    for (const servico of ["RH sob Medida", "Cargos, Salários e Carreira", "Recrutamento e Seleção"]) {
+      const r = prepararPayloadParaUsuario(comRh, { role: "user", allowedServices: [servico] });
+      expect(r.vinculos).toHaveLength(1);
+    }
+    const fora = prepararPayloadParaUsuario(comRh, { role: "user", allowedServices: ["BPO Gerencial"] });
+    expect(fora.vinculos).toHaveLength(0);
   });
 
   it("lista vazia de serviços não mostra nada", () => {

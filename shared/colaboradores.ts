@@ -51,6 +51,11 @@ export interface FuncaoInfo {
   /** Nome do serviço, igual ao da coluna "Serviço" da Vigência. */
   servico: string;
   grupo: GrupoServico;
+  /**
+   * Todos os serviços da Vigência que este campo de responsável cobre.
+   * Normalmente só o próprio serviço; "Recursos Humanos" cobre três.
+   */
+  servicos: string[];
 }
 
 export function normalizarTexto(value: unknown): string {
@@ -62,16 +67,26 @@ export function normalizarTexto(value: unknown): string {
     .toLowerCase();
 }
 
+function unico(servico: string, grupo: GrupoServico): FuncaoInfo {
+  return { servico, grupo, servicos: [servico] };
+}
+
 const FUNCOES_CONHECIDAS: Record<string, FuncaoInfo> = {
-  "receita": { servico: "BPO Operacional Receitas", grupo: "Operacional" },
-  "receita 2": { servico: "BPO Operacional Receitas", grupo: "Operacional" },
-  "despesa": { servico: "BPO Operacional Despesas", grupo: "Operacional" },
-  "despesa 2": { servico: "BPO Operacional Despesas", grupo: "Operacional" },
-  "agend. bancario": { servico: "BPO Controle/Tesouraria", grupo: "Operacional" },
-  "conciliacao bancaria": { servico: "BPO Controle/Tesouraria", grupo: "Operacional" },
-  "bpo gerencial": { servico: "BPO Gerencial", grupo: "Gerencial" },
-  "suprimentos pedidos": { servico: "BPO Suprimentos", grupo: "Suprimentos" },
-  "suprimentos outros": { servico: "BPO Suprimentos", grupo: "Suprimentos" },
+  "receita": unico("BPO Operacional Receitas", "Operacional"),
+  "receita 2": unico("BPO Operacional Receitas", "Operacional"),
+  "despesa": unico("BPO Operacional Despesas", "Operacional"),
+  "despesa 2": unico("BPO Operacional Despesas", "Operacional"),
+  "agend. bancario": unico("BPO Controle/Tesouraria", "Operacional"),
+  "conciliacao bancaria": unico("BPO Controle/Tesouraria", "Operacional"),
+  "bpo gerencial": unico("BPO Gerencial", "Gerencial"),
+  "suprimentos pedidos": unico("BPO Suprimentos", "Suprimentos"),
+  "suprimentos outros": unico("BPO Suprimentos", "Suprimentos"),
+  // O campo "Recursos Humanos" substituiu três serviços que existiam separados.
+  "recursos humanos": {
+    servico: "Recursos Humanos",
+    grupo: "Outros",
+    servicos: ["Recursos Humanos", "Cargos, Salários e Carreira", "RH sob Medida", "Recrutamento e Seleção"],
+  },
 };
 
 /**
@@ -90,7 +105,8 @@ export function resolverFuncao(funcao: string): FuncaoInfo {
       : chave.includes("bpo operacional")
         ? "Operacional"
         : "Outros";
-  return { servico: funcao.trim(), grupo };
+  const nome = funcao.trim();
+  return { servico: nome, grupo, servicos: [nome] };
 }
 
 export interface PermissaoUsuario {
@@ -114,7 +130,9 @@ export function prepararPayloadParaUsuario(
     : null;
 
   const vinculos = permitidos
-    ? payload.vinculos.filter((v) => permitidos.has(normalizarTexto(resolverFuncao(v.funcao).servico)))
+    ? payload.vinculos.filter((v) =>
+        resolverFuncao(v.funcao).servicos.some((servico) => permitidos.has(normalizarTexto(servico))),
+      )
     : payload.vinculos;
 
   // Com restrição de serviços, só sobram colaboradores que atendem algo permitido.
