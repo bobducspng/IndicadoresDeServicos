@@ -1,6 +1,6 @@
 import type { DashboardSheets, SheetRow } from "./sheets";
 
-export type DashboardView = "general" | "client" | "access";
+export type DashboardView = "general" | "client" | "collaborator" | "access";
 export type PeriodPreset = "year" | "last6" | "month" | "previousMonth" | "semester1" | "semester2" | "quarter1" | "quarter2" | "quarter3" | "quarter4";
 
 export interface FilterState {

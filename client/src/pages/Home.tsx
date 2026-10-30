@@ -32,7 +32,11 @@ import { BrazilMap } from "@/components/BrazilMap";
 import { LoginOverlay } from "@/components/LoginOverlay";
 import { UserManagementModal } from "@/components/UserManagementModal";
 import { trpc } from "@/lib/trpc";
-import { LogOut, Shield } from "lucide-react";
+import { LogOut, Shield, UserRound } from "lucide-react";
+import { ColaboradorPage } from "@/pages/ColaboradorPage";
+import { aplicarDadosDeExemplo, chaveCliente, montarIndiceClientes, type ClienteInfo } from "@/lib/colaboradores";
+import { resolverFuncao, type ColaboradoresPayload } from "@shared/colaboradores";
+import "@/colaboradores.css";
 import { fetchDashboardSheets, getInitialSheets, mergeDashboardSheets, spreadsheetSource, type DashboardSheets } from "@/lib/sheets";
 import {
   DEFAULT_FILTERS,
@@ -133,7 +137,7 @@ function LogoMark({ collapsed }: { collapsed: boolean }) {
 function Sidebar({ collapsed, setCollapsed, view, setView, mobileOpen, onCloseMobile, user, onLogout }: { collapsed: boolean; setCollapsed: (value: boolean) => void; view: DashboardView; setView: (value: DashboardView) => void; mobileOpen: boolean; onCloseMobile: () => void; user: any; onLogout: () => void }) {
   const goTo = (nextView: DashboardView) => {
     setView(nextView);
-    window.history.replaceState({}, "", nextView === "client" ? "/clientes" : nextView === "access" ? "/cadastro" : "/");
+    window.history.replaceState({}, "", nextView === "client" ? "/clientes" : nextView === "collaborator" ? "/colaboradores" : nextView === "access" ? "/cadastro" : "/");
     onCloseMobile();
   };
 
@@ -147,6 +151,7 @@ function Sidebar({ collapsed, setCollapsed, view, setView, mobileOpen, onCloseMo
       <nav className="sidebar-nav" aria-label="Navegação principal">
         <button className={`nav-item ${view === "general" ? "nav-item-active" : ""}`} onClick={() => goTo("general")} title="Indicadores Gerais"><BarChart3 size={17} /><span>Indicadores Gerais</span></button>
         <button className={`nav-item ${view === "client" ? "nav-item-active" : ""}`} onClick={() => goTo("client")} title="Por Cliente"><Users size={17} /><span>Por Cliente</span></button>
+        <button className={`nav-item ${view === "collaborator" ? "nav-item-active" : ""}`} onClick={() => goTo("collaborator")} title="Por Colaborador"><UserRound size={17} /><span>Por Colaborador</span></button>
         {(user?.role === "admin" || user?.role === "super_admin") && (
           <button
             type="button"
@@ -219,7 +224,7 @@ function formatSyncDate(value: string): string {
 
 function TopHeader({ onMenu, theme, setTheme, onRefresh, loading, syncLogs, view, userRole }: { onMenu: () => void; theme: "dark" | "light"; setTheme: (value: "dark" | "light") => void; onRefresh: () => void; loading: boolean; syncLogs: SyncLogItem[]; view: DashboardView; userRole?: string }) {
   const [showSyncLog, setShowSyncLog] = useState(false);
-  const breadcrumb = view === "access" ? "Cadastro" : view === "client" ? "Visão por cliente" : "Visão executiva";
+  const breadcrumb = view === "access" ? "Cadastro" : view === "client" ? "Visão por cliente" : view === "collaborator" ? "Visão por colaborador" : "Visão executiva";
   return (
     <header className="top-header">
       <div className="top-header-left">
@@ -514,11 +519,14 @@ function ClientEvents({ detail }: { detail: ClientDetail }) {
   return <div className="client-events-list">{detail.events.length ? detail.events.slice(0, 12).map((item) => <div className="client-event-row" key={`${item.date}-${item.service}-${item.responsible}`}><time>{formatDate(item.date)}</time><span className="client-event-dot" /><div className="client-event-content"><strong title={item.service}>{item.service}</strong><small><span className="client-event-responsible-label">Responsável</span>{item.responsible !== "—" ? item.responsible : "Não informado"}</small></div></div>) : <div className="empty-state"><Activity size={18} /><strong>Sem movimentações no período</strong></div>}</div>;
 }
 
-function ClientPage({ detail, clients, selectedClient, onSelectClient }: { detail: ClientDetail | null; clients: string[]; selectedClient: string; onSelectClient: (client: string) => void }) {
+interface ResponsavelDoCliente { email: string; nome: string; funcoes: string[] }
+
+function ClientPage({ detail, clients, selectedClient, onSelectClient, responsaveis, onAbrirColaborador }: { detail: ClientDetail | null; clients: string[]; selectedClient: string; onSelectClient: (client: string) => void; responsaveis: ResponsavelDoCliente[]; onAbrirColaborador: (email: string | null) => void }) {
   const relationshipYears = detail ? detail.metrics.relationshipDays / 365 : 0;
   return <>
-    <div className="page-heading"><div><div className="page-eyebrow"><span className="status-dot status-dot-blue" /> Recorte por cliente</div><h1>{detail?.client ?? "Visão por cliente"}</h1><p>{detail ? `${detail.brand} · ${detail.city}${detail.state !== "—" ? `, ${detail.state}` : ""} · ${detail.region} · histórico completo até ${formatDate(detail.referenceEndDate)}` : "Selecione um cliente para analisar sua carteira de serviços."}</p></div><ClientPicker clients={clients} value={selectedClient} onChange={onSelectClient} /></div>
+    <div className="page-heading"><div><div className="page-eyebrow"><span className="status-dot status-dot-blue" /> Recorte por cliente</div><h1>{detail?.client ?? "Visão por cliente"}</h1><p>{detail ? `${detail.brand} · ${detail.city}${detail.state !== "—" ? `, ${detail.state}` : ""} · ${detail.region} · histórico completo até ${formatDate(detail.referenceEndDate)}` : "Selecione um cliente para analisar sua carteira de serviços."}</p></div><div className="client-heading-actions"><ClientPicker clients={clients} value={selectedClient} onChange={onSelectClient} /><button type="button" className="collab-open-button" onClick={() => onAbrirColaborador(responsaveis[0]?.email ?? null)}><UserRound size={14} /> Ver por colaborador</button></div></div>
     {!detail ? <div className="client-empty-state"><div className="client-empty-icon"><Users size={24} /></div><h2>Selecione um cliente para visualizar o histórico</h2><p>Use a busca acima para analisar serviços, CNPJs, datas de vigência e movimentações de um cliente específico.</p></div> : <>
+      {responsaveis.length > 0 && <div className="client-responsibles"><span>Colaboradores:</span>{responsaveis.map((r) => <button type="button" key={r.email} className="collab-chip" title={r.funcoes.join(", ")} onClick={() => onAbrirColaborador(r.email)}>{r.nome}</button>)}</div>}
       <div className="client-detail-kpi-grid"><ClientMetricCard icon={Layers3} label="Serviços ativos" value={formatNumber(detail.metrics.activeServices)} detail={`${formatNumber(detail.metrics.historicalServices)} no histórico`} tone="blue" /><ClientMetricCard icon={Building2} label="CNPJs vinculados" value={formatNumber(detail.metrics.cnpjs)} detail="cadastros distintos" tone="teal" /><ClientMetricCard icon={Activity} label="Tempo médio" value={`${formatNumber(detail.metrics.averageActiveDays)} dias`} detail="por serviço" tone="violet" /><ClientMetricCard icon={CalendarClock} label="Relacionamento" value={`${relationshipYears.toFixed(1).replace(".", ",")} anos`} detail={`${formatDate(detail.metrics.firstServiceDate)} início`} tone="amber" /></div>
       <div className="content-grid content-grid-wide"><Panel title="Histórico dos serviços" eyebrow="INÍCIO · FIM · DURAÇÃO" icon={Layers3} className="panel-large client-gantt-panel"><ClientGantt detail={detail} /></Panel><Panel title="Resumo do cliente" eyebrow="SITUAÇÃO ATUAL" icon={Users}><div className="client-summary-list"><div><span>Serviços no filtro</span><strong>{formatNumber(detail.metrics.historicalServices)}</strong></div><div><span>Primeiro serviço</span><strong>{formatDate(detail.metrics.firstServiceDate)}</strong></div><div><span>Última movimentação</span><strong>{formatDate(detail.metrics.lastMovementDate)}</strong></div><div><span>Encerrados</span><strong>{formatNumber(detail.metrics.closedServices)}</strong></div></div></Panel></div>
       <Panel title="Serviço e Responsáveis" eyebrow="FATOS MOVIMENTAÇÃO" icon={Zap}><ClientEvents detail={detail} /></Panel>
@@ -555,9 +563,16 @@ export default function Home() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [view, setView] = useState<DashboardView>(() => window.location.pathname.includes("clientes") ? "client" : window.location.pathname.includes("cadastro") ? "access" : "general");
+  const [view, setView] = useState<DashboardView>(() => window.location.pathname.includes("clientes") ? "client" : window.location.pathname.includes("colaboradores") ? "collaborator" : window.location.pathname.includes("cadastro") ? "access" : "general");
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [selectedClient, setSelectedClient] = useState("");
+  const [selectedCollaborator, setSelectedCollaborator] = useState("");
+  const carteiraQuery = trpc.colaboradores.carteira.useQuery(undefined, {
+    enabled: isAllowed,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000,
+  });
   const userAllowedServices = useMemo(() => {
     if (authQuery.data?.role !== "user") return null;
     const list = authQuery.data?.allowedServices;
@@ -573,6 +588,33 @@ export default function Home() {
   const clientOptions = useMemo(() => data ? buildClientOptions(data) : [], [data]);
   const snapshot = useMemo(() => generalData ? deriveSnapshot(generalData, filters) : null, [generalData, filters]);
   const clientDetail = useMemo(() => data && selectedClient ? deriveClientDetail(data, selectedClient) : null, [data, selectedClient]);
+  const clientIndex = useMemo<Map<string, ClienteInfo>>(() => data ? montarIndiceClientes(data.vigencia) : new Map(), [data]);
+  const colaboradoresPayload = useMemo<ColaboradoresPayload | undefined>(() => aplicarDadosDeExemplo(carteiraQuery.data as ColaboradoresPayload | undefined, clientIndex), [carteiraQuery.data, clientIndex]);
+  const responsaveisDoCliente = useMemo<ResponsavelDoCliente[]>(() => {
+    if (!colaboradoresPayload || !selectedClient) return [];
+    const alvo = chaveCliente(selectedClient);
+    const porEmail = new Map<string, ResponsavelDoCliente>();
+    colaboradoresPayload.vinculos.forEach((v) => {
+      if (chaveCliente(v.cliente) !== alvo) return;
+      const colab = colaboradoresPayload.colaboradores.find((c) => c.email === v.email);
+      if (!colab) return;
+      const item = porEmail.get(v.email) ?? { email: v.email, nome: colab.nome, funcoes: [] };
+      const servico = resolverFuncao(v.funcao).servico;
+      if (!item.funcoes.includes(servico)) item.funcoes.push(servico);
+      porEmail.set(v.email, item);
+    });
+    return Array.from(porEmail.values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [colaboradoresPayload, selectedClient]);
+  const abrirColaborador = useCallback((email: string | null) => {
+    if (email) setSelectedCollaborator(email);
+    setView("collaborator");
+    window.history.replaceState({}, "", "/colaboradores");
+  }, []);
+  const abrirClienteDoColaborador = useCallback((cliente: string) => {
+    setSelectedClient(cliente);
+    setView("client");
+    window.history.replaceState({}, "", "/clientes");
+  }, []);
   const clearFilters = useCallback(() => setFilters(DEFAULT_FILTERS), []);
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useEffect(() => {
@@ -592,7 +634,7 @@ export default function Home() {
     <a className="skip-link" href="#main-content">Pular para o conteúdo principal</a>
     <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} view={view} setView={setView} mobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} user={authQuery.data} onLogout={handleLogout} />
     <button type="button" className={`mobile-nav-overlay ${mobileNavOpen ? "mobile-nav-overlay-open" : ""}`} aria-label="Fechar menu lateral" onClick={() => setMobileNavOpen(false)} />
-    <div className="app-main"><TopHeader onMenu={() => { setCollapsed(false); setMobileNavOpen(true); }} theme={theme} setTheme={setTheme} onRefresh={refresh} loading={loading} syncLogs={syncLogs} view={view} userRole={authQuery.data?.role} /><main id="main-content" className="dashboard-main">{syncNotice && <div className="sync-notice" role="status"><CircleAlert size={15} />{syncNotice}</div>}{view === "general" && <FilterBar filters={filters} setFilters={setFilters} options={options} onClear={clearFilters} />}{view === "access" ? ((authQuery.data?.role === "admin" || authQuery.data?.role === "super_admin") ? <UserManagementModal mode="page" isOpen={true} onClose={() => setView("general")} currentUserEmail={authQuery.data?.email} availableServices={options.services} /> : <div className="access-denied-card"><Shield size={24} /><h2>Acesso restrito</h2><p>A página Cadastro está disponível somente para administradores.</p></div>) : loading && !snapshot ? <LoadingState /> : !snapshot && error ? <ErrorState message={error} onRetry={refresh} /> : snapshot ? (view === "general" ? <GeneralPage snapshot={snapshot} /> : <ClientPage detail={clientDetail} clients={clientOptions} selectedClient={selectedClient} onSelectClient={setSelectedClient} />) : null}</main><footer className="app-footer"><span><span className="status-dot status-dot-live" /> Dados conectados via Google Sheets</span><span>Indicadores de Serviços · {formatNumber(data?.fatos.length ?? 0)} fatos carregados</span></footer>{loading && <div className="sync-blocker" role="alert" aria-live="polite"><div className="sync-blocker-card"><div className="loading-orbit"><span /><span /><span /></div><strong>{syncLogs.length ? "Atualizando indicadores" : "Conectando à base de indicadores"}</strong><p>{syncLogs.length ? "A navegação ficará bloqueada até a leitura das abas terminar." : "Consultando as abas públicas do Google Sheets."}</p></div></div>}</div>
+    <div className="app-main"><TopHeader onMenu={() => { setCollapsed(false); setMobileNavOpen(true); }} theme={theme} setTheme={setTheme} onRefresh={refresh} loading={loading} syncLogs={syncLogs} view={view} userRole={authQuery.data?.role} /><main id="main-content" className="dashboard-main">{syncNotice && <div className="sync-notice" role="status"><CircleAlert size={15} />{syncNotice}</div>}{view === "general" && <FilterBar filters={filters} setFilters={setFilters} options={options} onClear={clearFilters} />}{view === "access" ? ((authQuery.data?.role === "admin" || authQuery.data?.role === "super_admin") ? <UserManagementModal mode="page" isOpen={true} onClose={() => setView("general")} currentUserEmail={authQuery.data?.email} availableServices={options.services} /> : <div className="access-denied-card"><Shield size={24} /><h2>Acesso restrito</h2><p>A página Cadastro está disponível somente para administradores.</p></div>) : loading && !snapshot ? <LoadingState /> : !snapshot && error ? <ErrorState message={error} onRetry={refresh} /> : snapshot ? (view === "general" ? <GeneralPage snapshot={snapshot} /> : view === "collaborator" ? <ColaboradorPage payload={colaboradoresPayload} carregando={carteiraQuery.isLoading} erro={carteiraQuery.error ? "Não foi possível carregar os colaboradores agora." : null} indiceClientes={clientIndex} emailSelecionado={selectedCollaborator} onSelecionar={setSelectedCollaborator} onAbrirCliente={abrirClienteDoColaborador} usuarioNome={authQuery.data?.name} /> : <ClientPage detail={clientDetail} clients={clientOptions} selectedClient={selectedClient} onSelectClient={setSelectedClient} responsaveis={responsaveisDoCliente} onAbrirColaborador={abrirColaborador} />) : null}</main><footer className="app-footer"><span><span className="status-dot status-dot-live" /> Dados conectados via Google Sheets</span><span>Indicadores de Serviços · {formatNumber(data?.fatos.length ?? 0)} fatos carregados</span></footer>{loading && <div className="sync-blocker" role="alert" aria-live="polite"><div className="sync-blocker-card"><div className="loading-orbit"><span /><span /><span /></div><strong>{syncLogs.length ? "Atualizando indicadores" : "Conectando à base de indicadores"}</strong><p>{syncLogs.length ? "A navegação ficará bloqueada até a leitura das abas terminar." : "Consultando as abas públicas do Google Sheets."}</p></div></div>}</div>
     </div>
   );
 }
