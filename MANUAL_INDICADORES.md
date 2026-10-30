@@ -295,7 +295,7 @@ A tabela possui rolagem horizontal e vertical conforme o tamanho da carteira do 
 
 ## 7.1 Página Por Colaborador
 
-Rota `/colaboradores`, item **Por Colaborador** no menu. A página **Por Cliente** tem o botão **Ver por colaborador** e chips com os colaboradores do cliente, que levam para esta tela. Na tela: mapa do Brasil com a carteira do colaborador por UF (clique filtra a lista), grade de consultores com foto/iniciais e busca por nome, cargo ou departamento, e painel com todos os clientes do colaborador (abas Operacional/Gerencial/Suprimentos/Outros, busca, filtro de UF e "somente clientes ativos"). Clicar em um cliente abre a página Por Cliente.
+Rota `/colaboradores`, item **Por Colaborador** no menu. A página **Por Cliente** tem o botão **Ver por colaborador** e chips com os colaboradores do cliente, que levam para esta tela. Na tela, à esquerda: o quadro **Colaboradores e Prestadores de Serviço** (grade com foto/iniciais e busca por nome, cargo ou departamento) e, abaixo dele, o mapa do Brasil com a carteira do colaborador por UF (clique filtra a lista); à direita, o painel com todos os clientes do colaborador (abas Operacional/Gerencial/Suprimentos/Outros, busca, filtro de UF e "somente clientes ativos"). Clicar em um cliente abre a página Por Cliente.
 
 **Dados.** Os dados do cliente (UF, cidade, marca, serviços ativos) vêm da aba `Vigência CNPJ x Serviço`. Quem atende cada cliente vem do servidor, pelo endpoint protegido `colaboradores.carteira`, e é ligado ao cliente pelo **nome do cliente**. O servidor aplica as regras de acesso: usuário com serviços restritos só recebe os vínculos desses serviços, e o telefone só vai para administradores.
 

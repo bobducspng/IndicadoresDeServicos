@@ -147,19 +147,8 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
           <section className="panel">
             <div className="panel-header">
               <div className="panel-title-block">
-                <div className="panel-icon"><Building2 size={16} /></div>
-                <div><div className="panel-eyebrow">CLIENTES POR ESTADO</div><h2>{selecionado ? `Carteira de ${selecionado.nome.split(" ")[0]}` : "Mapa do Brasil"}</h2></div>
-              </div>
-              {uf && <button type="button" className="collab-link-button" onClick={() => setUf(null)}>Limpar estado ({uf})</button>}
-            </div>
-            <UfMap contagem={contagemUf} ufSelecionada={uf} onSelecionar={setUf} />
-          </section>
-
-          <section className="panel">
-            <div className="panel-header">
-              <div className="panel-title-block">
                 <div className="panel-icon"><Users size={16} /></div>
-                <div><div className="panel-eyebrow">{listaColab.length} COLABORADORES</div><h2>Consultores</h2></div>
+                <div><div className="panel-eyebrow">{listaColab.length} COLABORADORES</div><h2>Colaboradores e Prestadores de Serviço</h2></div>
               </div>
             </div>
             <div className="collab-filters">
@@ -187,6 +176,17 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
               </div>
             )}
           </section>
+
+          <section className="panel">
+            <div className="panel-header">
+              <div className="panel-title-block">
+                <div className="panel-icon"><Building2 size={16} /></div>
+                <div><div className="panel-eyebrow">CLIENTES POR ESTADO</div><h2>{selecionado ? `Carteira de ${selecionado.nome.split(" ")[0]}` : "Mapa do Brasil"}</h2></div>
+              </div>
+              {uf && <button type="button" className="collab-link-button" onClick={() => setUf(null)}>Limpar estado ({uf})</button>}
+            </div>
+            <UfMap contagem={contagemUf} ufSelecionada={uf} onSelecionar={setUf} />
+          </section>
         </div>
 
         <section className="panel collab-right">
@@ -194,7 +194,7 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
             <div className="client-empty-state">
               <div className="client-empty-icon"><Users size={24} /></div>
               <h2>Selecione um colaborador</h2>
-              <p>Clique em um consultor para listar todos os clientes dele e chamá-lo pelo Google Chat.</p>
+              <p>Clique em um colaborador para listar todos os clientes dele e chamá-lo pelo Google Chat.</p>
             </div>
           ) : (
             <>
