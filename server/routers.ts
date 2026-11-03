@@ -7,6 +7,7 @@ import { systemRouter } from "./_core/systemRouter";
 import { adminProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
 import { prepararPayloadParaUsuario } from "@shared/colaboradores";
 import { carregarColaboradores } from "./colaboradores";
+import { escolherFoto, validarFotoDataUrl } from "./colaboradoresFotos";
 
 export const appRouter = router({
   system: systemRouter,
@@ -52,11 +53,66 @@ export const appRouter = router({
 
       const restrito = allowed.role === "user" && allowed.allowedServices != null;
       const payload = await carregarColaboradores();
-      return prepararPayloadParaUsuario(payload, {
+      const visivel = prepararPayloadParaUsuario(payload, {
         role: allowed.role,
         allowedServices: restrito ? db.parseAllowedServices(allowed.allowedServices) : null,
       });
+
+      // Foto: enviada por admin > foto do Google (login) > foto do payload > iniciais.
+      // Se a leitura das fotos falhar, a tela segue com as iniciais.
+      let enviadas = new Map<string, Date>();
+      let google = new Map<string, string>();
+      try {
+        [enviadas, google] = await Promise.all([db.listCollaboratorPhotoVersions(), db.listGoogleAvatarsByEmail()]);
+      } catch (error) {
+        console.warn("[Colaboradores] Não foi possível ler as fotos", String(error));
+      }
+      return {
+        ...visivel,
+        colaboradores: visivel.colaboradores.map((colaborador) => {
+          const chave = colaborador.email.toLowerCase();
+          const enviada = enviadas.get(chave);
+          return {
+            ...colaborador,
+            ...escolherFoto(colaborador.email, {
+              enviada: enviada ? { atualizadoEm: enviada } : null,
+              google: google.get(chave),
+              payload: colaborador.fotoUrl,
+            }),
+          };
+        }),
+      };
     }),
+    /** Envia ou substitui a foto de um colaborador (somente administradores). */
+    salvarFoto: adminProcedure
+      .input(z.object({ email: z.string().email().max(320), imagem: z.string().max(500_000) }))
+      .mutation(async ({ ctx, input }) => {
+        const email = input.email.trim().toLowerCase();
+        const payload = await carregarColaboradores();
+        if (!payload.colaboradores.some((c) => c.email.toLowerCase() === email)) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Colaborador não encontrado." });
+        }
+        let foto;
+        try {
+          foto = validarFotoDataUrl(input.imagem);
+        } catch (error) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: error instanceof Error ? error.message : "Imagem inválida." });
+        }
+        await db.saveCollaboratorPhoto({
+          email,
+          mime: foto.mime,
+          data: foto.base64,
+          updatedBy: ctx.user.email ?? ctx.user.name ?? "admin",
+        });
+        return { ok: true as const };
+      }),
+    /** Remove a foto enviada; o colaborador volta à foto do Google ou às iniciais. */
+    removerFoto: adminProcedure
+      .input(z.object({ email: z.string().email().max(320) }))
+      .mutation(async ({ input }) => {
+        await db.deleteCollaboratorPhoto(input.email);
+        return { ok: true as const };
+      }),
   }),
   accessControl: router({
     list: adminProcedure.query(async () => {

@@ -109,3 +109,27 @@
 .collab-counts { display: flex; gap: 5px; flex-wrap: nowrap; justify-content: center; margin-top: 4px; }
 .collab-counts .collab-count { margin-top: 0; }
 .collab-count-cnpj { color: #ff9f43; background: color-mix(in srgb, #ff9f43 16%, transparent); }
+
+/* Foto do colaborador: clique no avatar (admin) e janela de ajuste */
+.collab-avatar-edit { display: grid; justify-items: center; gap: 4px; flex: none; }
+.collab-avatar-button { position: relative; display: block; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer; line-height: 0; }
+.collab-avatar-button:focus-visible { outline: 2px solid var(--blue); outline-offset: 3px; }
+.collab-avatar-camera { position: absolute; inset: 0; display: grid; place-items: center; border-radius: 50%; color: #fff; background: rgba(8, 12, 24, 0.55); opacity: 0; transition: opacity 150ms ease; }
+.collab-avatar-button:hover .collab-avatar-camera, .collab-avatar-button:focus-visible .collab-avatar-camera { opacity: 1; }
+@media (hover: none) { .collab-avatar-camera { opacity: 1; inset: auto 0 0 auto; width: 24px; height: 24px; background: var(--blue); } .collab-avatar-camera svg { width: 13px; height: 13px; } }
+.collab-avatar-remove { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; }
+
+.foto-editor-backdrop { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px; background: rgba(5, 8, 18, 0.65); }
+.foto-editor { width: min(320px, 100%); display: grid; justify-items: center; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: var(--surface, #111827); color: var(--ink); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.45); }
+.foto-editor header, .foto-editor footer { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.foto-editor header strong { font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.foto-editor footer { justify-content: flex-end; }
+.foto-editor-area { position: relative; border-radius: 50%; overflow: hidden; cursor: grab; touch-action: none; border: 2px solid var(--blue); background: #fff; }
+.foto-editor-area:active { cursor: grabbing; }
+.foto-editor-area canvas { display: block; pointer-events: none; }
+.foto-editor-dica { margin: 0; font-size: 11px; color: var(--muted); text-align: center; }
+.foto-editor-zoom { width: 100%; display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.foto-editor-zoom input { flex: 1; accent-color: var(--blue); }
+.foto-editor-erro { margin: 0; font-size: 11px; color: #ff6b6b; text-align: center; }
+.foto-editor-spin { animation: foto-editor-giro 900ms linear infinite; }
+@keyframes foto-editor-giro { to { transform: rotate(360deg); } }

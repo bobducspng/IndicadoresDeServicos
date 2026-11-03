@@ -308,3 +308,46 @@ export function mensagemDeChamada(colaborador: Colaborador, remetente?: string |
   const quem = remetente ? ` Aqui é ${primeiroNome(remetente)}.` : "";
   return `Olá, ${primeiroNome(colaborador.nome)}!${quem} Posso falar com você sobre a sua carteira de clientes?`;
 }
+
+/* ------------------------------------------------------------------------- */
+/* Foto do colaborador: recorte quadrado                                     */
+/* ------------------------------------------------------------------------- */
+
+export const FOTO_LADO_PX = 256;
+export const FOTO_ZOOM_MAX = 3;
+
+export interface RecorteFoto {
+  /** Canto superior esquerdo e lado (em px da imagem original) da área quadrada recortada. */
+  sx: number;
+  sy: number;
+  lado: number;
+}
+
+/**
+ * Calcula o quadrado da imagem original que será exibido.
+ * zoom 1 = maior quadrado possível; desloc* vão de -1 a 1 (0 = centralizado).
+ */
+export function calcularRecorte(largura: number, altura: number, zoom: number, deslocX: number, deslocY: number): RecorteFoto {
+  const base = Math.min(largura, altura);
+  const zoomSeguro = Math.min(Math.max(zoom, 1), FOTO_ZOOM_MAX);
+  const lado = base / zoomSeguro;
+  const limitar = (v: number) => Math.min(Math.max(v, -1), 1);
+  const sx = (largura - lado) / 2 + (limitar(deslocX) * (largura - lado)) / 2;
+  const sy = (altura - lado) / 2 + (limitar(deslocY) * (altura - lado)) / 2;
+  return { sx, sy, lado };
+}
+
+/** Converte um arrasto (em px da tela) em novo deslocamento, mantendo a imagem "presa" ao dedo/mouse. */
+export function deslocamentoAposArrasto(
+  atual: number,
+  deltaPx: number,
+  larguraVisivelPx: number,
+  dimensaoOriginal: number,
+  lado: number,
+): number {
+  const folga = dimensaoOriginal - lado;
+  if (folga <= 0 || larguraVisivelPx <= 0) return 0;
+  // 1 px na tela = (lado / larguraVisivelPx) px na imagem; o deslocamento normalizado usa metade da folga.
+  const deltaImagem = (deltaPx * lado) / larguraVisivelPx;
+  return Math.min(Math.max(atual - deltaImagem / (folga / 2), -1), 1);
+}

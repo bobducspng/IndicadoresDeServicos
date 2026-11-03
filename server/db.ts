@@ -1,6 +1,6 @@
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { allowedUsers, users, type AllowedUser, type InsertAllowedUser, type InsertUser, type User } from "../drizzle/schema";
+import { allowedUsers, collaboratorPhotos, users, type AllowedUser, type InsertAllowedUser, type InsertUser, type User } from "../drizzle/schema";
 import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -295,4 +295,67 @@ export async function toggleAllowedUserStatus(id: number, isActive: number): Pro
   const updated = await db.select().from(allowedUsers).where(eq(allowedUsers.id, id)).limit(1);
   if (!updated.length) throw new Error("Usuário não encontrado");
   return updated[0];
+}
+
+
+/* ========================================================================= */
+/* Fotos de colaboradores                                                    */
+/* ========================================================================= */
+
+/** Quais colaboradores têm foto enviada por admin e quando foi atualizada (sem carregar a imagem). */
+export async function listCollaboratorPhotoVersions(): Promise<Map<string, Date>> {
+  const db = await getDb();
+  const mapa = new Map<string, Date>();
+  if (!db) return mapa;
+  const linhas = await db
+    .select({ email: collaboratorPhotos.email, updatedAt: collaboratorPhotos.updatedAt })
+    .from(collaboratorPhotos);
+  linhas.forEach((linha) => mapa.set(linha.email.toLowerCase(), linha.updatedAt));
+  return mapa;
+}
+
+export async function getCollaboratorPhoto(email: string) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const linhas = await db
+    .select()
+    .from(collaboratorPhotos)
+    .where(eq(collaboratorPhotos.email, email.trim().toLowerCase()))
+    .limit(1);
+  return linhas[0];
+}
+
+export async function saveCollaboratorPhoto(input: { email: string; mime: string; data: string; updatedBy: string }) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  const email = input.email.trim().toLowerCase();
+  await db
+    .insert(collaboratorPhotos)
+    .values({ email, mime: input.mime, data: input.data, updatedBy: input.updatedBy })
+    .onDuplicateKeyUpdate({ set: { mime: input.mime, data: input.data, updatedBy: input.updatedBy, updatedAt: new Date() } });
+}
+
+export async function deleteCollaboratorPhoto(email: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Banco de dados indisponível.");
+  await db.delete(collaboratorPhotos).where(eq(collaboratorPhotos.email, email.trim().toLowerCase()));
+}
+
+/** Foto do Google guardada no login (users) ou cadastrada no Cadastro (allowed_users), por e-mail. */
+export async function listGoogleAvatarsByEmail(): Promise<Map<string, string>> {
+  const db = await getDb();
+  const mapa = new Map<string, string>();
+  if (!db) return mapa;
+  const [deLogin, deCadastro] = await Promise.all([
+    db.select({ email: users.email, avatarUrl: users.avatarUrl }).from(users),
+    db.select({ email: allowedUsers.email, avatarUrl: allowedUsers.avatarUrl }).from(allowedUsers),
+  ]);
+  deCadastro.forEach((l) => {
+    if (l.email && l.avatarUrl) mapa.set(l.email.toLowerCase(), l.avatarUrl);
+  });
+  // A foto do login é a mais recente: sobrescreve a do cadastro.
+  deLogin.forEach((l) => {
+    if (l.email && l.avatarUrl) mapa.set(l.email.toLowerCase(), l.avatarUrl);
+  });
+  return mapa;
 }

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Building2, Check, Copy, MessageCircle, Phone, Search, Users } from "lucide-react";
+import { Building2, Camera, Check, Copy, ImageOff, MessageCircle, Phone, Search, Users } from "lucide-react";
 import { GRUPOS_SERVICO, normalizarTexto, type ColaboradoresPayload, type GrupoServico } from "@shared/colaboradores";
+import { FotoColaboradorEditor } from "@/components/FotoColaboradorEditor";
 import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { UfMap } from "@/components/UfMap";
+import { trpc } from "@/lib/trpc";
 import {
   SEM_UF,
   carteiraDoColaborador,
@@ -24,6 +26,8 @@ interface Props {
   onSelecionar: (email: string) => void;
   onAbrirCliente: (cliente: string) => void;
   usuarioNome?: string | null;
+  /** Administradores podem enviar/remover a foto do colaborador. */
+  ehAdmin?: boolean;
 }
 
 type AbaGrupo = "Todos" | GrupoServico;
@@ -37,7 +41,7 @@ function Avatar({ nome, fotoUrl, grande = false }: { nome: string; fotoUrl: stri
   return <span className={`${classe} collab-avatar-fallback`} aria-hidden="true">{iniciais(nome)}</span>;
 }
 
-export function ColaboradorPage({ payload, carregando, erro, indiceClientes, emailSelecionado, onSelecionar, onAbrirCliente, usuarioNome }: Props) {
+export function ColaboradorPage({ payload, carregando, erro, indiceClientes, emailSelecionado, onSelecionar, onAbrirCliente, usuarioNome, ehAdmin = false }: Props) {
   const [buscaColab, setBuscaColab] = useState("");
   const [departamentosSel, setDepartamentosSel] = useState<string[]>([]);
   const [filtroAberto, setFiltroAberto] = useState<string | null>(null);
@@ -48,6 +52,11 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
   const [uf, setUf] = useState<string | null>(null);
   const [somenteAtivos, setSomenteAtivos] = useState(true);
   const [aviso, setAviso] = useState("");
+  const [arquivoFoto, setArquivoFoto] = useState<File | null>(null);
+  const inputFotoRef = useRef<HTMLInputElement>(null);
+  const utils = trpc.useUtils();
+  const salvarFoto = trpc.colaboradores.salvarFoto.useMutation();
+  const removerFoto = trpc.colaboradores.removerFoto.useMutation();
 
   const colaboradores = payload?.colaboradores ?? [];
   const vinculos = payload?.vinculos ?? [];
@@ -115,6 +124,40 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
     window.open(url, "_blank", "noopener,noreferrer");
     setAviso(copiou ? "Mensagem copiada. Cole no Google Chat e procure pelo colaborador." : "Google Chat aberto. Procure pelo colaborador pelo e-mail.");
     window.setTimeout(() => setAviso(""), 6000);
+  };
+
+  const avisar = (texto: string) => {
+    setAviso(texto);
+    window.setTimeout(() => setAviso(""), 4000);
+  };
+
+  const escolherArquivoFoto = (evento: React.ChangeEvent<HTMLInputElement>) => {
+    const arquivo = evento.target.files?.[0] ?? null;
+    evento.target.value = "";
+    if (arquivo) setArquivoFoto(arquivo);
+  };
+
+  const gravarFoto = async (imagem: string) => {
+    if (!selecionado) return;
+    try {
+      await salvarFoto.mutateAsync({ email: selecionado.email, imagem });
+    } catch (error) {
+      throw new Error(error instanceof Error && error.message ? error.message : "Não foi possível salvar a foto.");
+    }
+    await utils.colaboradores.carteira.invalidate();
+    setArquivoFoto(null);
+    avisar("Foto atualizada.");
+  };
+
+  const apagarFoto = async () => {
+    if (!selecionado) return;
+    try {
+      await removerFoto.mutateAsync({ email: selecionado.email });
+      await utils.colaboradores.carteira.invalidate();
+      avisar("Foto removida.");
+    } catch {
+      avisar("Não foi possível remover a foto.");
+    }
   };
 
   const copiarEmail = async () => {
@@ -190,7 +233,7 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
                     onClick={() => trocarColaborador(colaborador.email)}
                     aria-pressed={colaborador.email === emailSelecionado}
                   >
-                    <Avatar nome={colaborador.nome} fotoUrl={colaborador.fotoUrl} />
+                    <Avatar key={colaborador.fotoUrl ?? "sem-foto"} nome={colaborador.nome} fotoUrl={colaborador.fotoUrl} />
                     <strong title={colaborador.nome}>{colaborador.nome}</strong>
                     <small title={colaborador.cargo}>{colaborador.cargo || colaborador.departamento || "—"}</small>
                     <span className="collab-counts">
@@ -225,7 +268,22 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
           ) : (
             <>
               <div className="collab-profile">
-                <Avatar nome={selecionado.nome} fotoUrl={selecionado.fotoUrl} grande />
+                {ehAdmin ? (
+                  <div className="collab-avatar-edit">
+                    <button type="button" className="collab-avatar-button" onClick={() => inputFotoRef.current?.click()} aria-label={`Alterar foto de ${selecionado.nome}`} title="Clique para enviar uma foto">
+                      <Avatar key={selecionado.fotoUrl ?? "sem-foto"} nome={selecionado.nome} fotoUrl={selecionado.fotoUrl} grande />
+                      <span className="collab-avatar-camera" aria-hidden="true"><Camera size={18} /></span>
+                    </button>
+                    <input ref={inputFotoRef} type="file" accept="image/jpeg,image/png,image/webp" hidden onChange={escolherArquivoFoto} />
+                    {selecionado.fotoOrigem === "upload" && (
+                      <button type="button" className="collab-link-button collab-avatar-remove" onClick={apagarFoto} disabled={removerFoto.isPending}>
+                        <ImageOff size={11} /> Remover foto
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <Avatar key={selecionado.fotoUrl ?? "sem-foto"} nome={selecionado.nome} fotoUrl={selecionado.fotoUrl} grande />
+                )}
                 <div className="collab-profile-info">
                   <strong>{selecionado.nome}</strong>
                   <span>{selecionado.cargo}{selecionado.departamento ? ` · ${selecionado.departamento}` : ""}</span>
@@ -289,6 +347,9 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
           )}
         </section>
       </div>
+      {ehAdmin && selecionado && arquivoFoto && (
+        <FotoColaboradorEditor nome={selecionado.nome} arquivo={arquivoFoto} onCancelar={() => setArquivoFoto(null)} onSalvar={gravarFoto} />
+      )}
     </>
   );
 }

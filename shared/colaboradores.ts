@@ -20,6 +20,8 @@ export interface Colaborador {
   /** Só é enviado a administradores (ver prepararPayloadParaUsuario). */
   telefone: string | null;
   fotoUrl: string | null;
+  /** De onde veio a foto (preenchido pelo servidor): enviada por admin, conta Google ou Pipefy. */
+  fotoOrigem?: "upload" | "google" | "pipefy" | null;
 }
 
 export interface VinculoColaborador {
