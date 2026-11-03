@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Building2, Camera, Check, Copy, ImageOff, MessageCircle, Phone, Search, Users } from "lucide-react";
+import { Building2, Camera, Check, Copy, Filter, ImageOff, MessageCircle, Phone, Search, Users, X } from "lucide-react";
 import { GRUPOS_SERVICO, normalizarTexto, type ColaboradoresPayload, type GrupoServico } from "@shared/colaboradores";
 import { FotoColaboradorEditor } from "@/components/FotoColaboradorEditor";
 import { MultiSelectFilter } from "@/components/MultiSelectFilter";
@@ -7,6 +7,7 @@ import { UfMap } from "@/components/UfMap";
 import { trpc } from "@/lib/trpc";
 import {
   SEM_UF,
+  chaveCliente,
   carteiraDoColaborador,
   contarClientesPorUf,
   contarPorGrupo,
@@ -28,6 +29,11 @@ interface Props {
   usuarioNome?: string | null;
   /** Administradores podem enviar/remover a foto do colaborador. */
   ehAdmin?: boolean;
+  /** Clientes disponíveis no filtro "Cliente". */
+  clientesOpcoes?: string[];
+  /** Filtro de cliente aplicado (vem da página Por Cliente ou do próprio filtro). */
+  clientesFiltro?: string[];
+  onClientesFiltro?: (clientes: string[]) => void;
 }
 
 type AbaGrupo = "Todos" | GrupoServico;
@@ -41,7 +47,7 @@ function Avatar({ nome, fotoUrl, grande = false }: { nome: string; fotoUrl: stri
   return <span className={`${classe} collab-avatar-fallback`} aria-hidden="true">{iniciais(nome)}</span>;
 }
 
-export function ColaboradorPage({ payload, carregando, erro, indiceClientes, emailSelecionado, onSelecionar, onAbrirCliente, usuarioNome, ehAdmin = false }: Props) {
+export function ColaboradorPage({ payload, carregando, erro, indiceClientes, emailSelecionado, onSelecionar, onAbrirCliente, usuarioNome, ehAdmin = false, clientesOpcoes = [], clientesFiltro = [], onClientesFiltro = () => {} }: Props) {
   const [buscaColab, setBuscaColab] = useState("");
   const [departamentosSel, setDepartamentosSel] = useState<string[]>([]);
   const [filtroAberto, setFiltroAberto] = useState<string | null>(null);
@@ -59,7 +65,16 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
   const removerFoto = trpc.colaboradores.removerFoto.useMutation();
 
   const colaboradores = payload?.colaboradores ?? [];
-  const vinculos = payload?.vinculos ?? [];
+  const vinculosTodos = payload?.vinculos ?? [];
+
+  // Com filtro de cliente, só entram os vínculos desse(s) cliente(s): a carteira, os contadores
+  // e o mapa passam a mostrar somente o que diz respeito a eles.
+  const filtroAtivo = clientesFiltro.length > 0;
+  const vinculos = useMemo(() => {
+    if (!clientesFiltro.length) return vinculosTodos;
+    const alvo = new Set(clientesFiltro.map(chaveCliente));
+    return vinculosTodos.filter((v) => alvo.has(chaveCliente(v.cliente)));
+  }, [vinculosTodos, clientesFiltro]);
 
   const resumos = useMemo(
     () => resumirColaboradores(colaboradores, vinculos, indiceClientes, somenteAtivos),
@@ -83,11 +98,21 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
 
   const listaColab = useMemo(() => {
     const termo = normalizarTexto(buscaColab);
+    const atendem = filtroAtivo ? new Set(vinculos.map((v) => v.email.toLowerCase())) : null;
     return resumos.filter(({ colaborador }) => {
+      if (atendem && !atendem.has(colaborador.email.toLowerCase())) return false;
       if (departamentosSel.length && !departamentosSel.includes(colaborador.departamento)) return false;
       return !termo || normalizarTexto(`${colaborador.nome} ${colaborador.cargo} ${colaborador.email}`).includes(termo);
     });
-  }, [resumos, buscaColab, departamentosSel]);
+  }, [resumos, buscaColab, departamentosSel, filtroAtivo, vinculos]);
+
+  // Com filtro de cliente, o colaborador selecionado precisa ser um dos que atendem o cliente.
+  useEffect(() => {
+    if (!filtroAtivo || !payload || carregando) return;
+    if (listaColab.some(({ colaborador }) => colaborador.email === emailSelecionado)) return;
+    onSelecionar(listaColab[0]?.colaborador.email ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroAtivo, listaColab, emailSelecionado, payload, carregando]);
 
   const selecionado = colaboradores.find((c) => c.email === emailSelecionado) ?? null;
 
@@ -194,6 +219,17 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
         </label>
       </div>
 
+      {filtroAtivo && (
+        <div className="collab-filter-banner" role="status">
+          <Filter size={14} />
+          <span>
+            Filtro aplicado — {clientesFiltro.length === 1 ? "cliente" : "clientes"}: <strong>{clientesFiltro.length === 1 ? clientesFiltro[0] : `${clientesFiltro.length} selecionados`}</strong>
+            {" · "}{listaColab.length} {listaColab.length === 1 ? "colaborador atende" : "colaboradores atendem"}
+          </span>
+          <button type="button" className="clear-filters" onClick={() => { onClientesFiltro([]); setFiltroAberto(null); }}><X size={14} /> Limpar</button>
+        </div>
+      )}
+
       {payload?.fonte === "exemplo" && (
         <div className="collab-notice" role="status">
           <strong>Dados de exemplo.</strong> Os colaboradores são fictícios e a carteira foi distribuída automaticamente entre os clientes reais, só para validar a tela. A ligação com o Pipefy ainda não foi configurada.
@@ -213,6 +249,17 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
             <div className="collab-filters" ref={filtrosRef}>
               <label className="collab-search"><Search size={14} /><input value={buscaColab} onChange={(e) => setBuscaColab(e.target.value)} placeholder="Buscar nome ou cargo" aria-label="Buscar colaborador" /></label>
               <MultiSelectFilter
+                filterKey="cliente"
+                label="Cliente"
+                icon={Users}
+                value={clientesFiltro}
+                options={clientesOpcoes}
+                searchable
+                onChange={onClientesFiltro}
+                openFilter={filtroAberto}
+                setOpenFilter={setFiltroAberto}
+              />
+              <MultiSelectFilter
                 filterKey="departamento"
                 label="Departamento"
                 icon={Building2}
@@ -223,7 +270,7 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
                 setOpenFilter={setFiltroAberto}
               />
             </div>
-            {carregando && !payload ? <p className="collab-empty">Carregando colaboradores…</p> : listaColab.length === 0 ? <p className="collab-empty">Nenhum colaborador encontrado.</p> : (
+            {carregando && !payload ? <p className="collab-empty">Carregando colaboradores…</p> : listaColab.length === 0 ? <p className="collab-empty">{filtroAtivo ? "Nenhum colaborador atende o(s) cliente(s) filtrado(s)." : "Nenhum colaborador encontrado."}</p> : (
               <div className="collab-grid">
                 {listaColab.map(({ colaborador, clientes, cnpjs }) => (
                   <button

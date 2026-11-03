@@ -133,3 +133,12 @@
 .foto-editor-erro { margin: 0; font-size: 11px; color: #ff6b6b; text-align: center; }
 .foto-editor-spin { animation: foto-editor-giro 900ms linear infinite; }
 @keyframes foto-editor-giro { to { transform: rotate(360deg); } }
+
+/* Filtro de cliente aplicado (mesmo padrão do botão Limpar dos Indicadores Gerais) */
+.collab-filter-banner { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--blue) 45%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--blue) 10%, transparent); color: var(--ink); font-size: 12px; }
+.collab-filter-banner svg { color: var(--blue); flex: none; }
+.collab-filter-banner span { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.collab-filter-banner .clear-filters { height: 30px; }
+.multi-select-search { width: calc(100% - 16px); margin: 0 8px 6px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--surface-2) 70%, transparent); color: var(--ink); font-size: 12px; }
+.multi-select-search:focus { outline: 2px solid var(--blue); outline-offset: 0; }
+.collab-filters .collab-search { flex: 1 1 100%; }
