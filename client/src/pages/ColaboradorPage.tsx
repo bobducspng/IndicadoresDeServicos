@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Building2, Check, Copy, MessageCircle, Phone, Search, Users } from "lucide-react";
 import { GRUPOS_SERVICO, normalizarTexto, type ColaboradoresPayload, type GrupoServico } from "@shared/colaboradores";
+import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { UfMap } from "@/components/UfMap";
 import {
   SEM_UF,
@@ -38,7 +39,10 @@ function Avatar({ nome, fotoUrl, grande = false }: { nome: string; fotoUrl: stri
 
 export function ColaboradorPage({ payload, carregando, erro, indiceClientes, emailSelecionado, onSelecionar, onAbrirCliente, usuarioNome }: Props) {
   const [buscaColab, setBuscaColab] = useState("");
-  const [departamento, setDepartamento] = useState("Todos");
+  const [departamentosSel, setDepartamentosSel] = useState<string[]>([]);
+  const [filtroAberto, setFiltroAberto] = useState<string | null>(null);
+  const [emailCopiado, setEmailCopiado] = useState(false);
+  const filtrosRef = useRef<HTMLDivElement>(null);
   const [aba, setAba] = useState<AbaGrupo>("Todos");
   const [buscaCliente, setBuscaCliente] = useState("");
   const [uf, setUf] = useState<string | null>(null);
@@ -54,17 +58,27 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
   );
 
   const departamentos = useMemo(
-    () => ["Todos", ...Array.from(new Set(colaboradores.map((c) => c.departamento).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR"))],
+    () => Array.from(new Set(colaboradores.map((c) => c.departamento).filter(Boolean))).sort((a, b) => a.localeCompare(b, "pt-BR")),
     [colaboradores],
   );
+
+  // Fecha o menu do filtro ao clicar fora, como na barra de filtros dos Indicadores Gerais.
+  useEffect(() => {
+    if (!filtroAberto) return;
+    const aoClicar = (evento: PointerEvent) => {
+      if (!filtrosRef.current?.contains(evento.target as Node)) setFiltroAberto(null);
+    };
+    document.addEventListener("pointerdown", aoClicar);
+    return () => document.removeEventListener("pointerdown", aoClicar);
+  }, [filtroAberto]);
 
   const listaColab = useMemo(() => {
     const termo = normalizarTexto(buscaColab);
     return resumos.filter(({ colaborador }) => {
-      if (departamento !== "Todos" && colaborador.departamento !== departamento) return false;
+      if (departamentosSel.length && !departamentosSel.includes(colaborador.departamento)) return false;
       return !termo || normalizarTexto(`${colaborador.nome} ${colaborador.cargo} ${colaborador.email}`).includes(termo);
     });
-  }, [resumos, buscaColab, departamento]);
+  }, [resumos, buscaColab, departamentosSel]);
 
   const selecionado = colaboradores.find((c) => c.email === emailSelecionado) ?? null;
 
@@ -107,15 +121,17 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
     if (!selecionado) return;
     try {
       await navigator.clipboard.writeText(selecionado.email);
-      setAviso("E-mail copiado.");
+      setEmailCopiado(true);
+      window.setTimeout(() => setEmailCopiado(false), 2000);
     } catch {
       setAviso(selecionado.email);
+      window.setTimeout(() => setAviso(""), 4000);
     }
-    window.setTimeout(() => setAviso(""), 4000);
   };
 
   const trocarColaborador = (email: string) => {
     onSelecionar(email);
+    setEmailCopiado(false);
     setUf(null);
     setAba("Todos");
     setBuscaCliente("");
@@ -144,18 +160,25 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
 
       <div className="collab-layout">
         <div className="collab-left">
-          <section className="panel">
+          <section className="panel collab-panel-filtros">
             <div className="panel-header">
               <div className="panel-title-block">
                 <div className="panel-icon"><Users size={16} /></div>
                 <div><div className="panel-eyebrow">{listaColab.length} COLABORADORES</div><h2>Colaboradores e Prestadores de Serviço</h2></div>
               </div>
             </div>
-            <div className="collab-filters">
+            <div className="collab-filters" ref={filtrosRef}>
               <label className="collab-search"><Search size={14} /><input value={buscaColab} onChange={(e) => setBuscaColab(e.target.value)} placeholder="Buscar nome ou cargo" aria-label="Buscar colaborador" /></label>
-              <select value={departamento} onChange={(e) => setDepartamento(e.target.value)} aria-label="Filtrar por departamento">
-                {departamentos.map((d) => <option key={d} value={d}>{d === "Todos" ? "Todos os departamentos" : d}</option>)}
-              </select>
+              <MultiSelectFilter
+                filterKey="departamento"
+                label="Departamento"
+                icon={Building2}
+                value={departamentosSel}
+                options={departamentos}
+                onChange={setDepartamentosSel}
+                openFilter={filtroAberto}
+                setOpenFilter={setFiltroAberto}
+              />
             </div>
             {carregando && !payload ? <p className="collab-empty">Carregando colaboradores…</p> : listaColab.length === 0 ? <p className="collab-empty">Nenhum colaborador encontrado.</p> : (
               <div className="collab-grid">
@@ -203,12 +226,16 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
                 <div className="collab-profile-info">
                   <strong>{selecionado.nome}</strong>
                   <span>{selecionado.cargo}{selecionado.departamento ? ` · ${selecionado.departamento}` : ""}</span>
-                  <small>{selecionado.email}</small>
+                  <small className="collab-email">
+                    <span>{selecionado.email}</span>
+                    <button type="button" className="collab-icon-button" onClick={copiarEmail} aria-label="Copiar e-mail" title={emailCopiado ? "E-mail copiado" : "Copiar e-mail"}>
+                      {emailCopiado ? <Check size={13} /> : <Copy size={13} />}
+                    </button>
+                  </small>
                   {selecionado.telefone && <small className="collab-phone"><Phone size={12} /> {selecionado.telefone}</small>}
                 </div>
                 <div className="collab-actions">
                   <button type="button" className="collab-chat-button" onClick={chamar}><MessageCircle size={15} /> Chamar no Google Chat</button>
-                  <button type="button" className="collab-ghost-button" onClick={copiarEmail}><Copy size={14} /> Copiar e-mail</button>
                 </div>
               </div>
               {aviso && <div className="collab-toast" role="status"><Check size={13} /> {aviso}</div>}

@@ -18,8 +18,7 @@
 .collab-link-button { background: none; border: 0; color: var(--blue); font-size: 11px; font-weight: 700; cursor: pointer; }
 
 .collab-filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
-.collab-filters select, .collab-search { min-height: 34px; border: 1px solid var(--line); border-radius: 9px; background: color-mix(in srgb, var(--surface-2) 70%, transparent); color: var(--ink); font-size: 12px; }
-.collab-filters select { padding: 0 10px; }
+.collab-search { min-height: 34px; border: 1px solid var(--line); border-radius: 9px; background: color-mix(in srgb, var(--surface-2) 70%, transparent); color: var(--ink); font-size: 12px; }
 .collab-search { flex: 1 1 180px; display: flex; align-items: center; gap: 8px; padding: 0 10px; color: var(--muted); }
 .collab-search input { flex: 1; min-width: 0; background: transparent; border: 0; outline: none; color: var(--ink); font-size: 12px; }
 .collab-search-wide { margin: 10px 0 8px; }
@@ -80,3 +79,21 @@
   .collab-actions { width: 100%; }
 }
 .client-heading-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+/* Filtro de departamento (mesmo componente dos Indicadores Gerais) e painel sem corte do menu */
+.collab-panel-filtros { overflow: visible; }
+.collab-filters { align-items: center; }
+.collab-filters .multi-select-filter { flex: 0 0 auto; }
+.collab-filters .multi-select-menu { left: 0; right: auto; }
+
+/* E-mail com ícone de copiar */
+.collab-email { display: inline-flex; align-items: center; gap: 6px; }
+.collab-icon-button { display: inline-grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 6px; color: var(--muted); background: transparent; cursor: pointer; transition: color 150ms ease, background 150ms ease; }
+.collab-icon-button:hover { color: var(--ink); background: color-mix(in srgb, var(--blue) 16%, transparent); }
+.collab-icon-button:focus-visible { outline: 2px solid var(--blue); outline-offset: 1px; }
+
+/* Barra de rolagem: mesmo padrão das listas dos Indicadores Gerais */
+.collab-grid, .collab-clients { overscroll-behavior: contain; padding-right: 4px; scrollbar-width: thin; scrollbar-color: #9ca8b8 rgba(225, 232, 241, .09); }
+.collab-grid::-webkit-scrollbar, .collab-clients::-webkit-scrollbar { width: 8px; }
+.collab-grid::-webkit-scrollbar-track, .collab-clients::-webkit-scrollbar-track { background: rgba(225, 232, 241, .09); border-radius: 999px; }
+.collab-grid::-webkit-scrollbar-thumb, .collab-clients::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #d4dbe3, #8f9aa9); border: 2px solid var(--surface); border-radius: 999px; }
