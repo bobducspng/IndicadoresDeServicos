@@ -18,6 +18,8 @@ export interface ClienteInfo {
   cidades: string[];
   servicosAtivos: string[];
   ativo: boolean;
+  /** CNPJs com vigência ativa, por serviço (chave = nome do serviço normalizado). */
+  cnpjsPorServico: Record<string, string[]>;
 }
 
 export const SEM_UF = "—";
@@ -43,7 +45,7 @@ export function primeiroNome(nome: string): string {
 
 /** Um cliente é "ativo" se tem ao menos uma vigência com Situação "Ativo". */
 export function montarIndiceClientes(vigencia: SheetRow[]): Map<string, ClienteInfo> {
-  const mapa = new Map<string, ClienteInfo & { _estados: Set<string>; _cidades: Set<string>; _servicos: Set<string> }>();
+  const mapa = new Map<string, ClienteInfo & { _estados: Set<string>; _cidades: Set<string>; _servicos: Set<string>; _cnpjs: Map<string, Set<string>> }>();
 
   vigencia.forEach((linha) => {
     const nome = asText(linha["Cliente"]);
@@ -56,9 +58,11 @@ export function montarIndiceClientes(vigencia: SheetRow[]): Map<string, ClienteI
       cidades: [],
       servicosAtivos: [],
       ativo: false,
+      cnpjsPorServico: {},
       _estados: new Set<string>(),
       _cidades: new Set<string>(),
       _servicos: new Set<string>(),
+      _cnpjs: new Map<string, Set<string>>(),
     };
 
     const ativa = asText(linha["Situação"]) === "Ativo";
@@ -67,6 +71,13 @@ export function montarIndiceClientes(vigencia: SheetRow[]): Map<string, ClienteI
       item.ativo = true;
       const servico = asText(linha["Serviço"]);
       if (servico) item._servicos.add(servico);
+      const cnpj = asText(linha["CNPJ (dígitos)"]).replace(/\D/g, "") || asText(linha["CNPJ"]).replace(/\D/g, "");
+      if (cnpj && servico) {
+        const chaveServico = normalizarTexto(servico);
+        const conjunto = item._cnpjs.get(chaveServico) ?? new Set<string>();
+        conjunto.add(cnpj);
+        item._cnpjs.set(chaveServico, conjunto);
+      }
       const uf = asText(linha["Estado"]).toUpperCase();
       if (uf) item._estados.add(uf);
       const cidade = asText(linha["Cidade"]);
@@ -84,6 +95,7 @@ export function montarIndiceClientes(vigencia: SheetRow[]): Map<string, ClienteI
       cidades: Array.from(item._cidades).sort((a, b) => a.localeCompare(b, "pt-BR")),
       servicosAtivos: Array.from(item._servicos).sort((a, b) => a.localeCompare(b, "pt-BR")),
       ativo: item.ativo,
+      cnpjsPorServico: Object.fromEntries(Array.from(item._cnpjs.entries()).map(([servico, cnpjs]) => [servico, Array.from(cnpjs)])),
     });
   });
   return resultado;
@@ -229,6 +241,21 @@ export interface ResumoColaborador {
   colaborador: Colaborador;
   clientes: number;
   clientesAtivos: number;
+  /** CNPJs ativos dos serviços pelos quais o colaborador responde, nos clientes dele. */
+  cnpjs: number;
+}
+
+/**
+ * CNPJs ativos de um cliente nos serviços cobertos pelo campo de responsável.
+ * Ex.: quem é responsável por "BPO Gerencial" conta só os CNPJs com BPO Gerencial ativo.
+ */
+export function cnpjsDoVinculo(info: ClienteInfo | undefined, funcao: string): string[] {
+  if (!info) return [];
+  const achados = new Set<string>();
+  resolverFuncao(funcao).servicos.forEach((servico) => {
+    (info.cnpjsPorServico[normalizarTexto(servico)] ?? []).forEach((cnpj) => achados.add(cnpj));
+  });
+  return Array.from(achados);
 }
 
 export function resumirColaboradores(
@@ -238,17 +265,22 @@ export function resumirColaboradores(
   somenteAtivos: boolean,
 ): ResumoColaborador[] {
   const porEmail = new Map<string, Set<string>>();
+  const cnpjsPorEmail = new Map<string, Set<string>>();
   vinculos.forEach((v) => {
     const email = v.email.trim().toLowerCase();
     const chave = chaveCliente(v.cliente);
-    if (somenteAtivos && !indice.get(chave)?.ativo) return;
+    const info = indice.get(chave);
+    if (somenteAtivos && !info?.ativo) return;
     porEmail.set(email, (porEmail.get(email) ?? new Set()).add(chave));
+    const conjunto = cnpjsPorEmail.get(email) ?? new Set<string>();
+    cnpjsDoVinculo(info, v.funcao).forEach((cnpj) => conjunto.add(cnpj));
+    cnpjsPorEmail.set(email, conjunto);
   });
 
   return colaboradores
     .map((colaborador) => {
       const total = porEmail.get(colaborador.email.toLowerCase())?.size ?? 0;
-      return { colaborador, clientes: total, clientesAtivos: total };
+      return { colaborador, clientes: total, clientesAtivos: total, cnpjs: cnpjsPorEmail.get(colaborador.email.toLowerCase())?.size ?? 0 };
     })
     .sort((a, b) => b.clientes - a.clientes || a.colaborador.nome.localeCompare(b.colaborador.nome, "pt-BR"));
 }

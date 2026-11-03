@@ -182,7 +182,7 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
             </div>
             {carregando && !payload ? <p className="collab-empty">Carregando colaboradores…</p> : listaColab.length === 0 ? <p className="collab-empty">Nenhum colaborador encontrado.</p> : (
               <div className="collab-grid">
-                {listaColab.map(({ colaborador, clientes }) => (
+                {listaColab.map(({ colaborador, clientes, cnpjs }) => (
                   <button
                     key={colaborador.email}
                     type="button"
@@ -193,7 +193,10 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
                     <Avatar nome={colaborador.nome} fotoUrl={colaborador.fotoUrl} />
                     <strong title={colaborador.nome}>{colaborador.nome}</strong>
                     <small title={colaborador.cargo}>{colaborador.cargo || colaborador.departamento || "—"}</small>
-                    <span className="collab-count">{clientes} {clientes === 1 ? "cliente" : "clientes"}</span>
+                    <span className="collab-counts">
+                      <span className="collab-count">{clientes} {clientes === 1 ? "cliente" : "clientes"}</span>
+                      <span className="collab-count collab-count-cnpj" title="CNPJs ativos nos serviços pelos quais responde">{cnpjs} {cnpjs === 1 ? "CNPJ" : "CNPJs"}</span>
+                    </span>
                   </button>
                 ))}
               </div>

@@ -8,12 +8,14 @@ import {
   montarIndiceClientes,
   resumirColaboradores,
   urlDoChat,
+  cnpjsDoVinculo,
 } from "../client/src/lib/colaboradores";
 
 const vigencia = [
-  { Cliente: "Cliente A", Marca: "Marca A", "Situação": "Ativo", "Serviço": "BPO Gerencial", Estado: "SP", Cidade: "São Paulo" },
-  { Cliente: "Cliente A", Marca: "Marca A", "Situação": "Ativo", "Serviço": "BPO Operacional Receitas", Estado: "RJ", Cidade: "Niterói" },
-  { Cliente: "Cliente B", Marca: "Marca B", "Situação": "Encerrado", "Serviço": "BPO Gerencial", Estado: "MG", Cidade: "BH" },
+  { Cliente: "Cliente A", Marca: "Marca A", "Situação": "Ativo", "Serviço": "BPO Gerencial", Estado: "SP", Cidade: "São Paulo", "CNPJ (dígitos)": "11111111000101" },
+  { Cliente: "Cliente A", Marca: "Marca A", "Situação": "Ativo", "Serviço": "BPO Gerencial", Estado: "SP", Cidade: "São Paulo", "CNPJ (dígitos)": "11111111000202" },
+  { Cliente: "Cliente A", Marca: "Marca A", "Situação": "Ativo", "Serviço": "BPO Operacional Receitas", Estado: "RJ", Cidade: "Niterói", "CNPJ (dígitos)": "11111111000101" },
+  { Cliente: "Cliente B", Marca: "Marca B", "Situação": "Encerrado", "Serviço": "BPO Gerencial", Estado: "MG", Cidade: "BH", "CNPJ (dígitos)": "22222222000101" },
 ];
 
 describe("montarIndiceClientes", () => {
@@ -50,6 +52,22 @@ describe("carteira", () => {
     expect(contagem.get("SP")).toBe(1);
     expect(contagem.get("RJ")).toBe(1);
     expect(contagem.get("—")).toBe(1);
+  });
+
+  it("conta CNPJs ativos só dos serviços pelos quais o colaborador responde", () => {
+    const colabs = [
+      { email: "ana@vena.app.br", nome: "Ana" },
+      { email: "bia@vena.app.br", nome: "Bia" },
+    ] as Colaborador[];
+    const v = [
+      { email: "ana@vena.app.br", cliente: "Cliente A", funcao: "BPO Gerencial" },
+      { email: "bia@vena.app.br", cliente: "Cliente A", funcao: "Receita" },
+      { email: "bia@vena.app.br", cliente: "Cliente A", funcao: "Despesa" },
+    ];
+    const resumo = resumirColaboradores(colabs, v, indice, true);
+    expect(resumo.find((r) => r.colaborador.nome === "Ana")!.cnpjs).toBe(2);
+    // Receita tem 1 CNPJ ativo; Despesa não tem vigência ativa: não soma nada.
+    expect(resumo.find((r) => r.colaborador.nome === "Bia")!.cnpjs).toBe(1);
   });
 
   it("resumo respeita o filtro de ativos", () => {
