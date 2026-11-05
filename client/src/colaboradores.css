@@ -79,7 +79,16 @@
   .collab-clients { max-height: 480px; }
   .collab-actions { width: 100%; }
 }
-.client-heading-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.client-heading-actions { display: flex; gap: 10px; align-items: flex-end; flex-wrap: nowrap; flex: none; }
+/* Largura fixa do seletor e botão sempre reservado: a tela não "pula" ao escolher/limpar o cliente. */
+.client-heading-actions .client-picker { width: 330px; flex: none; }
+.client-heading-actions .collab-open-button { flex: none; min-height: 42px; white-space: nowrap; }
+.collab-open-button-oculto { visibility: hidden; pointer-events: none; }
+@media (max-width: 900px) {
+  .client-heading-actions { flex-wrap: wrap; width: 100%; }
+  .client-heading-actions .client-picker { width: 100%; }
+  .collab-open-button-oculto { display: none; }
+}
 
 /* Filtro de departamento (mesmo componente dos Indicadores Gerais) e painel sem corte do menu */
 .collab-panel-filtros { overflow: visible; }
