@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildActiveCnpjRows, buildClientOptions, deriveClientDetail, deriveSnapshot, PERIOD_OPTIONS } from "../client/src/lib/dashboard";
+import { buildActiveClientNames, buildActiveCnpjRows, buildClientOptions, DEFAULT_FILTERS, deriveClientDetail, deriveSnapshot, PERIOD_OPTIONS } from "../client/src/lib/dashboard";
 import type { FilterState } from "../client/src/lib/dashboard";
 import type { DashboardSheets } from "../client/src/lib/sheets";
 
@@ -322,5 +322,21 @@ describe("filtro de período", () => {
       startDate: "2025-12-01",
       endDate: "2025-12-31",
     });
+  });
+});
+
+
+describe("buildActiveClientNames", () => {
+  it("usa o mesmo critério do KPI Clientes ativos dos Indicadores Gerais", () => {
+    const dados = sheetsFrom([
+      { Cliente: "Alfa", Serviço: "BPO Gerencial", Início: "2024-01-10", Fim: "", Situação: "Ativo", CNPJ: "1" },
+      { Cliente: "Beta", Serviço: "BPO Gerencial", Início: "2023-01-10", Fim: "2025-02-01", Situação: "Encerrado", CNPJ: "2" },
+      { Cliente: "Gama", Serviço: "BPO Operacional Receitas", Início: "2024-05-01", Fim: "", Situação: "Ativo", CNPJ: "3" },
+      { Cliente: "Gama", Serviço: "BPO Gerencial", Início: "2023-05-01", Fim: "2024-06-01", Situação: "Encerrado", CNPJ: "3" },
+    ]);
+    dados.baseMensal = [{ "Ano-Mês": "2026-10" }];
+    const ativos = buildActiveClientNames(dados);
+    expect(Array.from(ativos).sort()).toEqual(["ALFA", "GAMA"]);
+    expect(ativos.size).toBe(deriveSnapshot(dados, DEFAULT_FILTERS).kpis.clients);
   });
 });

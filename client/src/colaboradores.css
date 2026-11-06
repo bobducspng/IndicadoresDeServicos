@@ -151,3 +151,8 @@
 .multi-select-search { width: calc(100% - 16px); margin: 0 8px 6px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; background: color-mix(in srgb, var(--surface-2) 70%, transparent); color: var(--ink); font-size: 12px; }
 .multi-select-search:focus { outline: 2px solid var(--blue); outline-offset: 0; }
 .collab-filters .collab-search { flex: 1 1 100%; }
+
+/* Lista de clientes: alternar encerrados */
+.client-picker-options .client-picker-toggle { display: inline; padding: 0; border: 0; background: transparent; color: var(--blue); font-size: 9px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.client-picker-options .client-picker-toggle:hover { background: transparent; color: var(--blue); text-decoration: underline; }
+.client-picker-options .client-picker-closed { color: var(--muted-2); font-style: normal; font-size: 9px; }

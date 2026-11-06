@@ -716,6 +716,21 @@ export function buildClientOptions(data: DashboardSheets): string[] {
   return Array.from(clients.values()).sort((a, b) => a.localeCompare(b, "pt-BR"));
 }
 
+/**
+ * Clientes com ao menos um serviço ativo na data mais recente da base: a mesma regra do
+ * KPI "Clientes ativos" dos Indicadores Gerais (sem filtros). Usada na lista da página Por Cliente.
+ */
+export function buildActiveClientNames(data: DashboardSheets): Set<string> {
+  const allRows = [...data.fatos, ...data.baseMensal, ...data.vigencia];
+  const latestDate = latestDateFromRows(allRows, ["Data", "Ano-Mês"]) ?? new Date();
+  const ativos = new Set<string>();
+  data.vigencia.forEach((row) => {
+    const key = normalize(row["Cliente"]);
+    if (key && activeAtEnd(row, latestDate)) ativos.add(key);
+  });
+  return ativos;
+}
+
 export function deriveClientDetail(data: DashboardSheets, client: string): ClientDetail | null {
   const normalizedClient = normalize(client);
   if (!normalizedClient) return null;
