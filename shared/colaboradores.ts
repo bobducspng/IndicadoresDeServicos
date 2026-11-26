@@ -120,13 +120,12 @@ export interface PermissaoUsuario {
 /**
  * Aplica ao payload as regras de acesso do usuário que pediu:
  *  - usuário com serviços restritos só vê vínculos desses serviços;
- *  - telefone só aparece para administradores.
+ *  - telefone aparece para todos os usuários autorizados (decisão de 26/11/2026; antes só administradores).
  */
 export function prepararPayloadParaUsuario(
   payload: ColaboradoresPayload,
   permissao: PermissaoUsuario,
 ): ColaboradoresPayload {
-  const ehAdmin = permissao.role === "admin" || permissao.role === "super_admin";
   const permitidos = permissao.allowedServices
     ? new Set(permissao.allowedServices.map(normalizarTexto))
     : null;
@@ -143,7 +142,7 @@ export function prepararPayloadParaUsuario(
   const colaboradores = (permitidos
     ? payload.colaboradores.filter((c) => comVinculo.has(c.email.toLowerCase()))
     : payload.colaboradores
-  ).map((c) => (ehAdmin ? c : { ...c, telefone: null }));
+  );
 
   return { ...payload, colaboradores, vinculos };
 }

@@ -686,9 +686,8 @@ function payloadDeExemplo_() {
   };
 }
 
-/** Regras de acesso: serviços restritos filtram os vínculos; telefone só para administradores. */
+/** Regras de acesso: serviços restritos filtram os vínculos; telefone visível para todos os usuários autorizados. */
 function prepararPayloadParaUsuario_(payload, role, servicosPermitidos) {
-  var ehAdmin = role === "admin" || role === "super_admin";
   var permitidos = null;
   if (servicosPermitidos) {
     permitidos = {};
@@ -705,11 +704,7 @@ function prepararPayloadParaUsuario_(payload, role, servicosPermitidos) {
     ? payload.colaboradores.filter(function (c) { return comVinculo[c.email.toLowerCase()] === true; })
     : payload.colaboradores
   ).map(function (c) {
-    if (ehAdmin) return c;
-    var copia = {};
-    Object.keys(c).forEach(function (k) { copia[k] = c[k]; });
-    copia.telefone = null;
-    return copia;
+    return c;
   });
   return { fonte: payload.fonte, atualizadoEm: payload.atualizadoEm, colaboradores: colaboradores, vinculos: vinculos };
 }
