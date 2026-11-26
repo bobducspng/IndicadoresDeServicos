@@ -44,7 +44,7 @@ export const appRouter = router({
   colaboradores: router({
     /**
      * Colaboradores e carteira (vínculos colaborador x cliente), já filtrados
-     * pelas permissões de quem pediu: serviços permitidos e telefone só para admin.
+     * pelas permissões de quem pediu: serviços permitidos (o telefone é visível para todos os usuários autorizados).
      */
     carteira: protectedProcedure.query(async ({ ctx }) => {
       const email = ctx.user.email?.toLowerCase();

@@ -309,6 +309,28 @@ export function mensagemDeChamada(colaborador: Colaborador, remetente?: string |
   return `Olá, ${primeiroNome(colaborador.nome)}!${quem} Posso falar com você sobre a sua carteira de clientes?`;
 }
 
+/**
+ * Numero para o link do WhatsApp (somente digitos, com DDI).
+ * "+..." e tratado como internacional; sem "+", e numero brasileiro (10 ou 11 digitos ganham o 55).
+ */
+export function numeroWhatsapp(telefone: string | null | undefined): string | null {
+  const texto = (telefone ?? "").trim();
+  const digitos = texto.replace(/\D/g, "");
+  if (!digitos) return null;
+  if (texto.startsWith("+")) return digitos.length >= 8 && digitos.length <= 15 ? digitos : null;
+  const nacional = digitos.replace(/^0+/, "");
+  if (nacional.length === 10 || nacional.length === 11) return `55${nacional}`;
+  if ((nacional.length === 12 || nacional.length === 13) && nacional.startsWith("55")) return nacional;
+  return null;
+}
+
+/** Link wa.me que abre o WhatsApp da propria pessoa, ja na conversa, com a mensagem de chamada pronta. */
+export function urlDoWhatsapp(colaborador: Colaborador, remetente?: string | null): string | null {
+  const numero = numeroWhatsapp(colaborador.telefone);
+  if (!numero) return null;
+  return `https://wa.me/${numero}?text=${encodeURIComponent(mensagemDeChamada(colaborador, remetente))}`;
+}
+
 /* ------------------------------------------------------------------------- */
 /* Foto do colaborador: recorte quadrado                                     */
 /* ------------------------------------------------------------------------- */

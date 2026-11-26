@@ -115,7 +115,7 @@ describe("Code.gs — indicadores (planilha privada)", () => {
 });
 
 describe("Code.gs — colaboradores", () => {
-  it("restringe por serviço e esconde telefone de quem não é administrador", () => {
+  it("restringe por serviço e mantém telefone para qualquer usuário autorizado", () => {
     const env = novo();
     const admin = env.chamar("colaboradores.carteira").data;
     expect(admin.fonte).toBe("pipefy");
@@ -128,7 +128,7 @@ describe("Code.gs — colaboradores", () => {
     env.como("livre@vena.app.br");
     const livre = env.chamar("colaboradores.carteira").data;
     expect(livre.colaboradores).toHaveLength(3);
-    expect(livre.colaboradores.every((c: any) => c.telefone === null)).toBe(true);
+    expect(livre.colaboradores[0].telefone).toBe("+55 41 99999-0001");
     env.como("restrito@vena.app.br");
     const restrito = env.chamar("colaboradores.carteira").data;
     expect(restrito.vinculos).toEqual([{ email: "ana.silva@vena.app.br", cliente: "Cliente A", funcao: "BPO Gerencial" }]);

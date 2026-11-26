@@ -156,3 +156,19 @@
 .client-picker-options .client-picker-toggle { display: inline; padding: 0; border: 0; background: transparent; color: var(--blue); font-size: 9px; font-weight: 700; cursor: pointer; white-space: nowrap; }
 .client-picker-options .client-picker-toggle:hover { background: transparent; color: var(--blue); text-decoration: underline; }
 .client-picker-options .client-picker-closed { color: var(--muted-2); font-style: normal; font-size: 9px; }
+
+/* Botao de WhatsApp ao lado do Google Chat */
+.collab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.collab-whatsapp-button {
+  background: #128c7e;
+  border-color: #128c7e;
+  color: #fff;
+}
+.collab-whatsapp-button:hover {
+  background: #0e6e63;
+  border-color: #0e6e63;
+}

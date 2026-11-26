@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Building2, Camera, Check, Copy, Filter, ImageOff, MessageCircle, Phone, Search, Users, X } from "lucide-react";
+import { Building2, Camera, Check, Copy, Filter, ImageOff, MessageCircle, Phone, Search, Smartphone, Users, X } from "lucide-react";
 import { GRUPOS_SERVICO, normalizarTexto, type ColaboradoresPayload, type GrupoServico } from "@shared/colaboradores";
 import { FotoColaboradorEditor } from "@/components/FotoColaboradorEditor";
 import { MultiSelectFilter } from "@/components/MultiSelectFilter";
@@ -15,6 +15,7 @@ import {
   mensagemDeChamada,
   resumirColaboradores,
   urlDoChat,
+  urlDoWhatsapp,
   type ClienteInfo,
 } from "@/lib/colaboradores";
 
@@ -154,6 +155,17 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
   const avisar = (texto: string) => {
     setAviso(texto);
     window.setTimeout(() => setAviso(""), 4000);
+  };
+
+  const abrirWhatsapp = () => {
+    if (!selecionado) return;
+    const url = urlDoWhatsapp(selecionado, usuarioNome);
+    if (!url) {
+      avisar("Este colaborador não tem um telefone válido cadastrado.");
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+    avisar("WhatsApp aberto com a mensagem pronta. Confira e envie.");
   };
 
   const escolherArquivoFoto = (evento: React.ChangeEvent<HTMLInputElement>) => {
@@ -344,6 +356,9 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
                 </div>
                 <div className="collab-actions">
                   <button type="button" className="collab-chat-button" onClick={chamar}><MessageCircle size={15} /> Chamar no Google Chat</button>
+                  {urlDoWhatsapp(selecionado, usuarioNome) && (
+                    <button type="button" className="collab-chat-button collab-whatsapp-button" onClick={abrirWhatsapp}><Smartphone size={15} /> Chamar no WhatsApp</button>
+                  )}
                 </div>
               </div>
               {aviso && <div className="collab-toast" role="status"><Check size={13} /> {aviso}</div>}

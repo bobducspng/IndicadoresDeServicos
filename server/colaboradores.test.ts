@@ -36,9 +36,9 @@ describe("resolverFuncao", () => {
 });
 
 describe("prepararPayloadParaUsuario", () => {
-  it("remove telefone para quem não é admin", () => {
+  it("mantém telefone para qualquer usuário autorizado", () => {
     const r = prepararPayloadParaUsuario(payload, { role: "user", allowedServices: null });
-    expect(r.colaboradores.every((c) => c.telefone === null)).toBe(true);
+    expect(r.colaboradores.some((c) => c.telefone !== null)).toBe(true);
     expect(r.colaboradores).toHaveLength(3);
   });
 
