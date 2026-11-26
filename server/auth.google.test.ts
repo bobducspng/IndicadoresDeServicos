@@ -7,7 +7,7 @@ const { state, clone } = vi.hoisted(() => {
     id: number;
     email: string;
     name: string;
-    role: "admin" | "user";
+    role: "admin" | "super_admin" | "user";
     isActive: number;
     allowedServices: string | null;
     avatarUrl: string | null;
@@ -57,7 +57,7 @@ vi.mock("./db", () => ({
   addAllowedUser: async (data: {
     email: string;
     name: string;
-    role?: "admin" | "user";
+    role?: "admin" | "super_admin" | "user";
     allowedServices?: string[] | null;
     avatarUrl?: string | null;
     addedBy?: string | null;
@@ -77,7 +77,7 @@ vi.mock("./db", () => ({
     state.users.push(user);
     return clone(user);
   },
-  updateAllowedUserRole: async (id: number, role: "admin" | "user") => {
+  updateAllowedUserRole: async (id: number, role: "admin" | "super_admin" | "user") => {
     const user = state.users.find((item) => item.id === id);
     if (!user) throw new Error("Usuário não encontrado");
     user.role = role;
@@ -130,7 +130,7 @@ function createMockContext(user?: TrpcContext["user"]): {
       headers: {},
     } as TrpcContext["req"],
     res: {
-      clearCookie: (name: string, options: Record<string, unknown> ) => {
+      clearCookie: (name: string, options: Record<string, unknown>) => {
         clearedCookies.push({ name, options });
       },
     } as unknown as TrpcContext["res"],
@@ -141,7 +141,7 @@ function createMockContext(user?: TrpcContext["user"]): {
 
 const adminUser = {
   id: 1,
-  openId: "sample-admin",
+      openId: "google:sample-admin",
   email: "ederlei.pereira@vena.app.br",
   name: "Ederlei Pereira",
   loginMethod: "google",
@@ -187,6 +187,17 @@ describe("Autenticação e Controle de Acesso (Google SSO)", () => {
     await expect(caller.accessControl.list()).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
+  });
+
+  it("permite ao super administrador usar a gestão de acessos", async () => {
+    const { ctx } = createMockContext({
+      ...adminUser,
+      role: "super_admin",
+    });
+    const caller = appRouter.createCaller(ctx);
+
+    const result = await caller.accessControl.list();
+    expect(result.length).toBeGreaterThanOrEqual(1);
   });
 
   it("permite ao administrador listar, adicionar e remover e-mails autorizados", async () => {
@@ -238,5 +249,16 @@ describe("Autenticação e Controle de Acesso (Google SSO)", () => {
 
     const removed = await caller.accessControl.remove({ id: added.id });
     expect(removed).toBe(true);
+  });
+
+  it("recusa novo cadastro fora do domínio corporativo", async () => {
+    const { ctx } = createMockContext(adminUser);
+    const caller = appRouter.createCaller(ctx);
+
+    await expect(caller.accessControl.add({
+      email: "externo@example.com",
+      name: "Usuário Externo",
+      role: "user",
+    })).rejects.toThrow("@vena.app.br");
   });
 });

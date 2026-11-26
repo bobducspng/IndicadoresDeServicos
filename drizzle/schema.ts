@@ -1,4 +1,4 @@
-import { int, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
+import { int, mediumtext, mysqlEnum, mysqlTable, text, timestamp, varchar } from "drizzle-orm/mysql-core";
 
 /**
  * Core user table backing auth flow.
@@ -17,7 +17,7 @@ export const users = mysqlTable("users", {
   email: varchar("email", { length: 320 }),
   avatarUrl: text("avatarUrl"),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  role: mysqlEnum("role", ["user", "admin", "super_admin"]).default("user").notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
@@ -34,7 +34,7 @@ export const allowedUsers = mysqlTable("allowed_users", {
   id: int("id").autoincrement().primaryKey(),
   email: varchar("email", { length: 320 }).notNull().unique(),
   name: varchar("name", { length: 255 }).notNull(),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  role: mysqlEnum("role", ["user", "admin", "super_admin"]).default("user").notNull(),
   isActive: int("isActive").default(1).notNull(),
   allowedServices: text("allowedServices"),
   avatarUrl: text("avatarUrl"),
@@ -45,3 +45,18 @@ export const allowedUsers = mysqlTable("allowed_users", {
 
 export type AllowedUser = typeof allowedUsers.$inferSelect;
 export type InsertAllowedUser = typeof allowedUsers.$inferInsert;
+
+/**
+ * Fotos de colaboradores enviadas por administradores (tela "Por Colaborador").
+ * A imagem já chega recortada/reduzida do navegador e fica em base64.
+ * Chave: e-mail corporativo em minúsculas (mesma chave do payload de colaboradores).
+ */
+export const collaboratorPhotos = mysqlTable("collaborator_photos", {
+  email: varchar("email", { length: 320 }).primaryKey(),
+  mime: varchar("mime", { length: 32 }).notNull(),
+  data: mediumtext("data").notNull(),
+  updatedBy: varchar("updatedBy", { length: 320 }),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+
+export type CollaboratorPhoto = typeof collaboratorPhotos.$inferSelect;

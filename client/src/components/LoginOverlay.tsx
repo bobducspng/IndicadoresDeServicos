@@ -1,18 +1,52 @@
 import { useEffect, useState } from "react";
-import { AlertCircle, ShieldCheck } from "lucide-react";
-import { startLogin } from "@/const";
+import { AlertCircle, Check, Copy, Mail, MessageCircle, ShieldCheck } from "lucide-react";
+import { IS_GAS, startLogin } from "@/const";
+import OFFICIAL_MARK from "@/assets/menu-collapsed.png";
 
-const OFFICIAL_MARK = "/manus-storage/menu-collapsed_962cea64.png";
 
-export function LoginOverlay() {
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+function getAuthErrorMessage(code: string | null): string | null {
+  if (code === "unauthorized") {
+    return "Seu e-mail não está cadastrado ou está desativado. Escolha um dos canais abaixo para solicitar a liberação.";
+  }
+  if (code === "configuration") {
+    return "O login Google ainda não está configurado no servidor. Fale com o administrador.";
+  }
+  if (code === "oauth_failed") {
+    return "Não foi possível concluir a autenticação Google. Tente novamente ou fale com o administrador.";
+  }
+  if (code === "cancelled") {
+    return "O login foi cancelado. Clique novamente para entrar com sua conta Google.";
+  }
+  return null;
+}
+
+const GAS_DENIED_MESSAGE = (email: string | null | undefined) =>
+  email
+    ? `A conta ${email} não está cadastrada ou está desativada. Escolha um dos canais abaixo para solicitar a liberação.`
+    : "Não foi possível identificar sua conta Google. Entre com seu e-mail @vena.app.br e tente novamente, ou solicite a liberação pelos canais abaixo.";
+
+export function LoginOverlay({ email = null }: { email?: string | null }) {
+  const [errorMessage, setErrorMessage] = useState<string | null>(IS_GAS ? GAS_DENIED_MESSAGE(email) : null);
+  const [copiedContact, setCopiedContact] = useState<"email" | "whatsapp" | null>(null);
+
+  const handleCopyContact = async (value: string, contact: "email" | "whatsapp") => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopiedContact(contact);
+      window.setTimeout(() => {
+        setCopiedContact((current) => (current === contact ? null : current));
+      }, 1800);
+    } catch {
+      setCopiedContact(null);
+    }
+  };
 
   useEffect(() => {
+    if (IS_GAS) return;
     const params = new URLSearchParams(window.location.search);
-    if (params.get("authError") === "unauthorized") {
-      setErrorMessage(
-        "Seu e-mail não está cadastrado para acessar esta ferramenta. Fale com o administrador para solicitar a liberação."
-      );
+    const message = getAuthErrorMessage(params.get("authError"));
+    if (message) {
+      setErrorMessage(message);
       window.history.replaceState({}, "", window.location.pathname);
     }
   }, []);
@@ -38,11 +72,12 @@ export function LoginOverlay() {
             </p>
           </div>
 
+          {!IS_GAS && (<>
           <div className="login-action-box">
             <button
               type="button"
               className="google-sso-button"
-              onClick={() => startLogin()}
+              onClick={startLogin}
             >
               <svg className="google-icon" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
                 <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.66v3.05h3.88c2.27-2.09 3.66-5.17 3.66-9.15z" />
@@ -54,9 +89,12 @@ export function LoginOverlay() {
             </button>
           </div>
 
-          <p className="login-helper-text">
-            Você será direcionado para a autenticação segura da sua conta Google.
-          </p>
+          {!IS_GAS && (
+            <p className="login-helper-text">
+              Você será direcionado diretamente à autenticação segura do Google.
+            </p>
+          )}
+          </>)}
 
           {errorMessage && (
             <div className="login-error-alert" role="alert">
@@ -64,6 +102,62 @@ export function LoginOverlay() {
               <div className="login-error-text">
                 <strong>Acesso não liberado</strong>
                 <p>{errorMessage}</p>
+                <span className="login-contact-label">Canais para solicitar a liberação</span>
+                <div className="login-contact-grid" aria-label="Canais para solicitar liberação de acesso">
+                  <div className="login-contact-card">
+                    <a
+                      className="login-contact-main"
+                      href="mailto:ederlei.pereira@vena.app.br"
+                      aria-label="Enviar e-mail para ederlei.pereira@vena.app.br"
+                    >
+                      <span className="login-contact-icon login-contact-icon-email">
+                        <Mail size={16} aria-hidden="true" />
+                      </span>
+                      <span className="login-contact-copy">
+                        <span className="login-contact-name">E-mail</span>
+                        <span className="login-contact-value">ederlei.pereira@vena.app.br</span>
+                      </span>
+                    </a>
+                    <button
+                      type="button"
+                      className="login-copy-button"
+                      onClick={() => handleCopyContact("ederlei.pereira@vena.app.br", "email")}
+                      aria-label="Copiar e-mail do administrador"
+                      title="Copiar e-mail"
+                    >
+                      {copiedContact === "email" ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                      <span>{copiedContact === "email" ? "Copiado" : "Copiar"}</span>
+                    </button>
+                  </div>
+
+                  <div className="login-contact-card login-contact-card-whatsapp">
+                    <a
+                      className="login-contact-main"
+                      href="https://wa.me/5541996646752"
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Abrir WhatsApp do administrador"
+                    >
+                      <span className="login-contact-icon login-contact-icon-whatsapp">
+                        <MessageCircle size={16} aria-hidden="true" />
+                      </span>
+                      <span className="login-contact-copy">
+                        <span className="login-contact-name">WhatsApp</span>
+                        <span className="login-contact-value">+55 (41) 99664-6752</span>
+                      </span>
+                    </a>
+                    <button
+                      type="button"
+                      className="login-copy-button login-copy-button-whatsapp"
+                      onClick={() => handleCopyContact("+55 (41) 99664-6752", "whatsapp")}
+                      aria-label="Copiar telefone do administrador"
+                      title="Copiar telefone"
+                    >
+                      {copiedContact === "whatsapp" ? <Check size={14} aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
+                      <span>{copiedContact === "whatsapp" ? "Copiado" : "Copiar"}</span>
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -71,7 +165,7 @@ export function LoginOverlay() {
 
         <div className="login-security-badge">
           <ShieldCheck size={14} className="security-shield-icon" />
-          <span>ACESSO SEGURO · INDICADORES DE SERVIÇOS</span>
+          <span>{IS_GAS ? "ACESSO RESTRITO · CONTAS VENA" : "ACESSO SEGURO · GOOGLE OAUTH"}</span>
         </div>
       </div>
     </div>

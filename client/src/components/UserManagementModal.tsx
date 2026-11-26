@@ -17,11 +17,15 @@ import {
   Check,
   Search,
   Copy,
+  ChevronDown,
   ArrowUp,
   ArrowDown,
   ArrowUpDown,
+  Layers3,
+  MessageCircle,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { IS_GAS } from "@/const";
 
 interface UserManagementModalProps {
   isOpen: boolean;
@@ -32,6 +36,14 @@ interface UserManagementModalProps {
 }
 
 type UserTableColumn = "name" | "email" | "role" | "services" | "status" | "addedBy" | "actions";
+type AccessRole = "user" | "admin" | "super_admin";
+type InviteTarget = { name: string; email: string };
+
+const ACCESS_ROLE_LABELS: Record<AccessRole, string> = {
+  user: "Usuário",
+  admin: "Administrador",
+  super_admin: "Super Administrador",
+};
 
 const userTableColumns: UserTableColumn[] = ["name", "email", "role", "services", "status", "addedBy", "actions"];
 
@@ -45,6 +57,30 @@ const defaultColumnWidths: Record<UserTableColumn, number> = {
   actions: 8,
 };
 
+function formatAccessError(error: unknown, fallback: string): string {
+  const raw = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  let message = raw;
+
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    if (Array.isArray(parsed)) {
+      const firstMessage = parsed.find(
+        (item): item is { message: string } =>
+          typeof item === "object" && item !== null && "message" in item && typeof item.message === "string",
+      )?.message;
+      if (firstMessage) message = firstMessage;
+    }
+  } catch {
+    // Mensagens normais não precisam de desserialização.
+  }
+
+  if (message.toLocaleLowerCase("pt-BR").includes("vena.app.br")) {
+    return "E-mail não permitido. Cadastre somente endereços do domínio @vena.app.br.";
+  }
+
+  return message && !message.trim().startsWith("[") ? message : fallback;
+}
+
 const minimumColumnWidths: Record<UserTableColumn, number> = {
   name: 15,
   email: 16,
@@ -55,6 +91,53 @@ const minimumColumnWidths: Record<UserTableColumn, number> = {
   actions: 7,
 };
 
+function PermissionServicesFilter({
+  value,
+  options,
+  onChange,
+}: {
+  value: string[];
+  options: string[];
+  onChange: (value: string[]) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const allSelected = options.length > 0 && value.length === options.length;
+  const summary = value.length === 0 ? "Nenhum" : allSelected ? "Todos os serviços" : value.length === 1 ? value[0] : `${value.length} selecionados`;
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, [open]);
+
+  const toggle = (service: string) => {
+    onChange(value.includes(service) ? value.filter((item) => item !== service) : [...value, service]);
+  };
+
+  return (
+    <div className="multi-select-filter permission-services-filter" ref={rootRef}>
+      <button type="button" className="multi-select-trigger permission-services-trigger" onClick={() => setOpen((current) => !current)} aria-expanded={open}>
+        <Layers3 size={14} />
+        <span className="multi-select-copy"><small>Serviços permitidos</small><strong title={summary}>{summary}</strong></span>
+        <ChevronDown size={14} className="multi-select-chevron" />
+      </button>
+      {open && (
+        <div className="multi-select-menu permission-services-menu">
+          <div className="multi-select-menu-head"><span>Serviços que este usuário pode visualizar</span><button type="button" onClick={() => onChange([])}>Remover</button></div>
+          <div className="multi-select-options">
+            <button type="button" className={`multi-select-option ${allSelected ? "multi-select-option-selected" : ""}`} onClick={() => onChange(allSelected ? [] : options)}><span>Todos os serviços</span>{allSelected && <Check size={14} />}</button>
+            {options.map((service) => <button type="button" key={service} className={`multi-select-option ${value.includes(service) ? "multi-select-option-selected" : ""}`} onClick={() => toggle(service)}><span>{service}</span>{value.includes(service) && <Check size={14} />}</button>)}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function UserManagementModal({
   isOpen,
   onClose,
@@ -64,9 +147,8 @@ export function UserManagementModal({
 }: UserManagementModalProps) {
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [role, setRole] = useState<"user" | "admin">("user");
+  const [role, setRole] = useState<AccessRole>("user");
   const [newAllowedServices, setNewAllowedServices] = useState<string[]>([]);
-  const [avatarUrl, setAvatarUrl] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
@@ -74,13 +156,16 @@ export function UserManagementModal({
   const [editingServicesUserId, setEditingServicesUserId] = useState<number | null>(null);
   const [editingServices, setEditingServices] = useState<string[]>([]);
   const [userSearch, setUserSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "user">("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | AccessRole>("all");
+  const [roleFilterOpen, setRoleFilterOpen] = useState(false);
   const [sortKey, setSortKey] = useState<"name" | "email" | "status">("name");
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("asc");
   const [copiedEmailId, setCopiedEmailId] = useState<number | null>(null);
+  const [inviteTarget, setInviteTarget] = useState<InviteTarget | null>(null);
   const [columnWidths, setColumnWidths] = useState<Record<UserTableColumn, number>>(defaultColumnWidths);
   const [isResizingColumn, setIsResizingColumn] = useState(false);
   const tableRef = useRef<HTMLTableElement | null>(null);
+  const roleFilterRef = useRef<HTMLDivElement | null>(null);
   const resizeRef = useRef<{
     left: UserTableColumn;
     right: UserTableColumn;
@@ -91,25 +176,27 @@ export function UserManagementModal({
   } | null>(null);
 
   const utils = trpc.useUtils();
+  // Mesma consulta da tela principal (cache compartilhado): traz o link do Web App no Apps Script.
+  const meQuery = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
 
   const usersQuery = trpc.accessControl.list.useQuery(undefined, {
     enabled: isOpen,
   });
 
   const addMutation = trpc.accessControl.add.useMutation({
-    onSuccess: () => {
+    onSuccess: (createdUser) => {
       setEmail("");
       setName("");
-      setAvatarUrl("");
       setRole("user");
       setNewAllowedServices([]);
       setFormError(null);
+      setInviteTarget({ name: createdUser.name, email: createdUser.email });
       setSuccessMsg("E-mail autorizado com sucesso!");
       setTimeout(() => setSuccessMsg(null), 3500);
       utils.accessControl.list.invalidate();
     },
     onError: (err) => {
-      setFormError(err.message || "Erro ao adicionar usuário");
+      setFormError(formatAccessError(err, "Não foi possível cadastrar este e-mail."));
     },
   });
 
@@ -203,6 +290,15 @@ export function UserManagementModal({
     };
   }, []);
 
+  useEffect(() => {
+    if (!roleFilterOpen) return;
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!roleFilterRef.current?.contains(event.target as Node)) setRoleFilterOpen(false);
+    };
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
+    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
+  }, [roleFilterOpen]);
+
   const serviceGroups = [
     {
       label: "BPO Operacional",
@@ -265,7 +361,6 @@ export function UserManagementModal({
       name: name.trim(),
       role,
       allowedServices: role === "user" ? newAllowedServices : undefined,
-      avatarUrl: avatarUrl.trim() || undefined,
     });
   };
 
@@ -282,8 +377,8 @@ export function UserManagementModal({
     removeMutation.mutate({ id });
   };
 
-  const handleToggleRole = (id: number, currentRole: "admin" | "user") => {
-    const newRole = currentRole === "admin" ? "user" : "admin";
+  const handleToggleRole = (id: number, currentRole: AccessRole) => {
+    const newRole: AccessRole = currentRole === "user" ? "admin" : currentRole === "admin" ? "super_admin" : "user";
     updateRoleMutation.mutate({ id, role: newRole });
   };
 
@@ -343,6 +438,37 @@ export function UserManagementModal({
       }, 2200);
     } catch {
       setFormError("Não foi possível copiar o e-mail neste navegador.");
+    }
+  };
+
+  const handleNotifyInChat = async () => {
+    if (!inviteTarget) return;
+
+    const chatWindow = window.open("https://chat.google.com/", "_blank", "noopener,noreferrer");
+    const accessUrl = meQuery.data?.appUrl || window.location.origin;
+    const message = [
+      `Olá, ${inviteTarget.name}!`,
+      "",
+      "Seu acesso ao Indicadores de Serviços foi liberado.",
+      `E-mail autorizado: ${inviteTarget.email}`,
+      `Acesse o sistema: ${accessUrl}`,
+      "",
+      IS_GAS
+        ? "Abra o link com a sua conta Google @vena.app.br (a mesma do e-mail autorizado)."
+        : "Entre usando o botão ‘Entrar com Google SSO’ e selecione esse e-mail na conta Google.",
+    ].join("\n");
+
+    try {
+      await navigator.clipboard.writeText(message);
+      setFormError(null);
+      setSuccessMsg(
+        chatWindow
+          ? "Mensagem copiada. Cole-a na conversa do Google Chat."
+          : "Mensagem copiada. O navegador bloqueou a nova aba do Google Chat; permita pop-ups e tente novamente.",
+      );
+      setTimeout(() => setSuccessMsg(null), 4500);
+    } catch {
+      setFormError("O Google Chat foi aberto, mas não foi possível copiar a mensagem neste navegador.");
     }
   };
 
@@ -496,9 +622,16 @@ export function UserManagementModal({
                   required
                   placeholder="exemplo@vena.app.br"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="mgmt-input"
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (formError) setFormError(null);
+                  }}
+                  className={`mgmt-input ${formError?.toLocaleLowerCase("pt-BR").includes("domínio @vena.app.br") ? "mgmt-input-error" : ""}`}
+                  aria-invalid={formError?.toLocaleLowerCase("pt-BR").includes("domínio @vena.app.br") || undefined}
                 />
+                {formError?.toLocaleLowerCase("pt-BR").includes("domínio @vena.app.br") && (
+                  <small className="mgmt-field-hint mgmt-field-hint-error">Use um e-mail terminado em @vena.app.br.</small>
+                )}
               </div>
 
               <div className="form-group">
@@ -506,24 +639,13 @@ export function UserManagementModal({
                 <select
                   id="user-role"
                   value={role}
-                  onChange={(e) => setRole(e.target.value as "user" | "admin")}
+                  onChange={(e) => setRole(e.target.value as AccessRole)}
                   className="mgmt-select"
                 >
                   <option value="user">Usuário (Visualizador)</option>
-                  <option value="admin">Administrador (Total)</option>
+                  <option value="admin">Administrador</option>
+                  <option value="super_admin">Super Administrador</option>
                 </select>
-              </div>
-
-              <div className="form-group">
-                <label htmlFor="user-avatar">URL da Foto (opcional)</label>
-                <input
-                  id="user-avatar"
-                  type="url"
-                  placeholder="https://..."
-                  value={avatarUrl}
-                  onChange={(e) => setAvatarUrl(e.target.value)}
-                  className="mgmt-input"
-                />
               </div>
             </div>
 
@@ -531,18 +653,14 @@ export function UserManagementModal({
               <div className="form-services-group">
                 <div className="form-services-label">
                   <span>Serviços que este usuário pode visualizar:</span>
-                  <small>Selecione os serviços permitidos. Se nenhum for selecionado, o usuário não verá serviços na visão geral.</small>
-                  <div className="services-selection-actions">
-                    <button type="button" onClick={() => setNewAllowedServices(availableServices)}>Selecionar todos</button>
-                    <button type="button" onClick={() => setNewAllowedServices([])}>Remover todos</button>
-                  </div>
+                  <small>Use o mesmo seletor dos filtros do painel. Você pode selecionar vários serviços ou remover todos antes de cadastrar.</small>
                 </div>
-                {renderServiceGroups(newAllowedServices, toggleNewAllowedService)}
+                <PermissionServicesFilter value={newAllowedServices} options={availableServices} onChange={setNewAllowedServices} />
               </div>
             )}
 
             {formError && (
-              <div className="mgmt-alert mgmt-alert-error">
+              <div className="mgmt-alert mgmt-alert-error" role="alert" aria-live="assertive">
                 <AlertCircle size={15} />
                 <span>{formError}</span>
               </div>
@@ -562,12 +680,31 @@ export function UserManagementModal({
                 ) : (
                   <>
                     <UserPlus size={15} />
-                    <span>Autorizar E-mail</span>
+                    <span>Cadastrar</span>
                   </>
                 )}
               </button>
             </div>
           </form>
+
+          {inviteTarget && (
+            <section className="chat-invite-panel" aria-live="polite">
+              <div className="chat-invite-copy">
+                <div className="chat-invite-icon" aria-hidden="true">
+                  <MessageCircle size={17} />
+                </div>
+                <div>
+                  <strong>Acesso cadastrado</strong>
+                  <span>{inviteTarget.name} · {inviteTarget.email}</span>
+                  <small>A mensagem será copiada para você colar na conversa do Google Chat.</small>
+                </div>
+              </div>
+              <button type="button" className="btn-chat-invite" onClick={handleNotifyInChat}>
+                <MessageCircle size={15} />
+                <span>Avisar pelo Google Chat</span>
+              </button>
+            </section>
+          )}
 
           {/* Lista de Usuários Autorizados */}
           <div className="users-list-section">
@@ -583,14 +720,12 @@ export function UserManagementModal({
                 <button type="button" className="reset-column-widths" onClick={resetColumnWidths} title="Restaurar larguras padrão">
                   Restaurar colunas
                 </button>
-                <label className="users-role-filter">
-                  <span className="sr-only">Filtrar por perfil</span>
-                  <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value as "all" | "admin" | "user")} aria-label="Filtrar por perfil">
-                    <option value="all">Todos os perfis</option>
-                    <option value="admin">Administradores</option>
-                    <option value="user">Usuários</option>
-                  </select>
-                </label>
+                <div className={`multi-select-filter users-role-filter ${roleFilterOpen ? "multi-select-filter-open" : ""}`} ref={roleFilterRef}>
+                  <button type="button" className="multi-select-trigger" onClick={() => setRoleFilterOpen((current) => !current)} aria-expanded={roleFilterOpen} aria-label="Filtrar por perfil">
+                    <Shield size={14} /><span className="multi-select-copy"><small>Perfil de acesso</small><strong>{roleFilter === "all" ? "Todos os perfis" : ACCESS_ROLE_LABELS[roleFilter]}</strong></span><ChevronDown size={14} className="multi-select-chevron" />
+                  </button>
+                  {roleFilterOpen && <div className="multi-select-menu role-filter-menu"><div className="multi-select-menu-head"><span>Filtrar por perfil</span><button type="button" onClick={() => { setRoleFilter("all"); setRoleFilterOpen(false); }}>Limpar</button></div><div className="multi-select-options"><button type="button" className={`multi-select-option ${roleFilter === "all" ? "multi-select-option-selected" : ""}`} onClick={() => { setRoleFilter("all"); setRoleFilterOpen(false); }}><span>Todos os perfis</span>{roleFilter === "all" && <Check size={14} />}</button>{(Object.keys(ACCESS_ROLE_LABELS) as AccessRole[]).map((option) => <button type="button" key={option} className={`multi-select-option ${roleFilter === option ? "multi-select-option-selected" : ""}`} onClick={() => { setRoleFilter(option); setRoleFilterOpen(false); }}><span>{ACCESS_ROLE_LABELS[option]}</span>{roleFilter === option && <Check size={14} />}</button>)}</div></div>}
+                </div>
                 <label className="users-search-box">
                   <Search size={14} />
                   <input
@@ -789,10 +924,10 @@ export function UserManagementModal({
                               title="Clique para alternar permissão"
                               disabled={updateRoleMutation.isPending}
                             >
-                              {u.role === "admin" ? (
+                              {u.role !== "user" ? (
                                 <>
                                   <Shield size={12} />
-                                  <span>ADMINISTRADOR</span>
+                                  <span>{u.role === "super_admin" ? "SUPER ADMIN" : "ADMINISTRADOR"}</span>
                                 </>
                               ) : (
                                 <>
@@ -803,8 +938,8 @@ export function UserManagementModal({
                             </button>
                           </td>
                           <td data-label="Serviços" className="td-services">
-                            {u.role === "admin" ? (
-                              <span className="badge-all-services">Todos (Admin)</span>
+                            {u.role !== "user" ? (
+                              <span className="badge-all-services">Todos ({u.role === "super_admin" ? "Super Admin" : "Admin"})</span>
                             ) : (
                               <div className="user-services-summary">
                                 {u.allowedServices === null ? (
@@ -821,6 +956,17 @@ export function UserManagementModal({
                                 ) : (
                                   <span className="badge-no-services">Nenhum</span>
                                 )}
+                                <button
+                                  type="button"
+                                  className="btn-services-edit"
+                                  onClick={() => handleStartServicesEdit(u.id, u.allowedServices === null ? availableServices : (u.allowedServicesList || []))}
+                                  title="Editar serviços permitidos"
+                                  aria-label={`Editar serviços permitidos de ${u.email}`}
+                                  disabled={editingServicesUserId === u.id || updateServicesMutation.isPending}
+                                >
+                                  <Pencil size={12} />
+                                  <span>Editar</span>
+                                </button>
                               </div>
                             )}
                           </td>
@@ -834,18 +980,6 @@ export function UserManagementModal({
                             <span>{u.addedBy || "sistema"}</span>
                           </td>
                           <td data-label="Ações" className="td-actions">
-                            {u.role !== "admin" && (
-                              <button
-                                type="button"
-                                className="btn-edit-services"
-                                onClick={() => handleStartServicesEdit(u.id, u.allowedServices === null ? availableServices : (u.allowedServicesList || []))}
-                                title="Configurar serviços permitidos"
-                                aria-label={`Configurar serviços de ${u.email}`}
-                                disabled={editingServicesUserId === u.id || updateServicesMutation.isPending}
-                              >
-                                <Shield size={14} />
-                              </button>
-                            )}
                             <button
                               type="button"
                               className="btn-edit-user"

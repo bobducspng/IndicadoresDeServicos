@@ -17,6 +17,7 @@ import {
   Menu,
   Moon,
   RefreshCw,
+  Search,
   Settings2,
   Store,
   Sun,
@@ -29,14 +30,25 @@ import {
 } from "lucide-react";
 import { BrazilMap } from "@/components/BrazilMap";
 import { LoginOverlay } from "@/components/LoginOverlay";
+import EXPANDED_MARK from "@/assets/menu-expanded.png";
+import COLLAPSED_MARK from "@/assets/menu-collapsed.png";
+import { IS_GAS } from "@/const";
+import { setBrowserPath } from "@/lib/nav";
 import { UserManagementModal } from "@/components/UserManagementModal";
 import { trpc } from "@/lib/trpc";
-import { LogOut, Shield } from "lucide-react";
+import { LogOut, Shield, UserRound } from "lucide-react";
+import { ColaboradorPage } from "@/pages/ColaboradorPage";
+import { MultiSelectFilter } from "@/components/MultiSelectFilter";
+import { aplicarDadosDeExemplo, chaveCliente, montarIndiceClientes, type ClienteInfo } from "@/lib/colaboradores";
+import { resolverFuncao, type ColaboradoresPayload } from "@shared/colaboradores";
+import "@/colaboradores.css";
 import { fetchDashboardSheets, getInitialSheets, mergeDashboardSheets, spreadsheetSource, type DashboardSheets } from "@/lib/sheets";
 import {
   DEFAULT_FILTERS,
   PERIOD_OPTIONS,
   asText,
+  buildActiveCnpjRows,
+  buildActiveClientNames,
   buildClientOptions,
   buildFilterOptions,
   deriveClientDetail,
@@ -46,6 +58,7 @@ import {
   formatNumber,
   formatPeriodDate,
   normalize,
+  type ActiveCnpjRow,
   type DashboardSnapshot,
   type ClientDetail,
   type DashboardView,
@@ -54,8 +67,6 @@ import {
   type PeriodPreset,
 } from "@/lib/dashboard";
 
-const EXPANDED_MARK = "/manus-storage/menu-expanded_4134ee4e.png";
-const COLLAPSED_MARK = "/manus-storage/menu-collapsed_962cea64.png";
 
 type Tone = "blue" | "teal" | "amber" | "violet" | "boticario";
 
@@ -93,7 +104,7 @@ function useDashboardData(enabled: boolean) {
         if (!active) return;
         const merged = mergeDashboardSheets(data, nextData);
         const now = new Date().toISOString();
-        const counts = `${merged.data.fatos.length.toLocaleString("pt-BR")} fatos · ${merged.data.vigencia.length.toLocaleString("pt-BR")} vigências · ${merged.data.baseMensal.length.toLocaleString("pt-BR")} meses`;
+        const counts = `${merged.data.fatos.length.toLocaleString("pt-BR")} fatos · ${merged.data.vigencia.length.toLocaleString("pt-BR")} vigências · ${merged.data.historicoServicos.length.toLocaleString("pt-BR")} históricos · ${merged.data.baseMensal.length.toLocaleString("pt-BR")} meses`;
         const partial = merged.partialSheets.length > 0;
         setData(merged.data);
         setSyncNotice(partial ? "A atualização pública retornou uma aba incompleta; mantivemos essa aba com a última leitura completa." : "");
@@ -130,7 +141,7 @@ function LogoMark({ collapsed }: { collapsed: boolean }) {
 function Sidebar({ collapsed, setCollapsed, view, setView, mobileOpen, onCloseMobile, user, onLogout }: { collapsed: boolean; setCollapsed: (value: boolean) => void; view: DashboardView; setView: (value: DashboardView) => void; mobileOpen: boolean; onCloseMobile: () => void; user: any; onLogout: () => void }) {
   const goTo = (nextView: DashboardView) => {
     setView(nextView);
-    window.history.replaceState({}, "", nextView === "client" ? "/clientes" : nextView === "access" ? "/cadastro" : "/");
+    setBrowserPath(nextView === "client" ? "/clientes" : nextView === "collaborator" ? "/colaboradores" : nextView === "access" ? "/cadastro" : "/");
     onCloseMobile();
   };
 
@@ -144,7 +155,8 @@ function Sidebar({ collapsed, setCollapsed, view, setView, mobileOpen, onCloseMo
       <nav className="sidebar-nav" aria-label="Navegação principal">
         <button className={`nav-item ${view === "general" ? "nav-item-active" : ""}`} onClick={() => goTo("general")} title="Indicadores Gerais"><BarChart3 size={17} /><span>Indicadores Gerais</span></button>
         <button className={`nav-item ${view === "client" ? "nav-item-active" : ""}`} onClick={() => goTo("client")} title="Por Cliente"><Users size={17} /><span>Por Cliente</span></button>
-        {user?.role === "admin" && (
+        <button className={`nav-item ${view === "collaborator" ? "nav-item-active" : ""}`} onClick={() => goTo("collaborator")} title="Por Colaborador"><UserRound size={17} /><span>Por Colaborador</span></button>
+        {(user?.role === "admin" || user?.role === "super_admin") && (
           <button
             type="button"
             className={`nav-item nav-item-admin ${view === "access" ? "nav-item-active" : ""}`}
@@ -177,14 +189,14 @@ function Sidebar({ collapsed, setCollapsed, view, setView, mobileOpen, onCloseMo
             {user?.name ? user.name.split(" ")[0] : "Usuário"}
           </strong>
           <span className="sidebar-user-role">
-            {user?.role === "admin" ? "ADMINISTRADOR" : "USUÁRIO"}
+            {user?.role === "super_admin" ? "SUPER ADMINISTRADOR" : user?.role === "admin" ? "ADMINISTRADOR" : "USUÁRIO"}
           </span>
           <span className="sidebar-user-email" title={user?.email || ""}>
             {user?.email || ""}
           </span>
         </div>
         <div className="sidebar-user-actions">
-          {user?.role === "admin" && (
+          {(user?.role === "admin" || user?.role === "super_admin") && (
             <button
               type="button"
               className="sidebar-action-btn"
@@ -195,15 +207,17 @@ function Sidebar({ collapsed, setCollapsed, view, setView, mobileOpen, onCloseMo
               <Settings2 size={15} />
             </button>
           )}
-          <button
-            type="button"
-            className="sidebar-action-btn sidebar-logout-btn"
-            onClick={onLogout}
-            title="Sair do sistema"
-            aria-label="Sair"
-          >
-            <LogOut size={15} />
-          </button>
+          {!IS_GAS && (
+            <button
+              type="button"
+              className="sidebar-action-btn sidebar-logout-btn"
+              onClick={onLogout}
+              title="Sair do sistema"
+              aria-label="Sair"
+            >
+              <LogOut size={15} />
+            </button>
+          )}
         </div>
       </div>
     </aside>
@@ -214,9 +228,9 @@ function formatSyncDate(value: string): string {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(new Date(value));
 }
 
-function TopHeader({ onMenu, theme, setTheme, onRefresh, loading, syncLogs, view }: { onMenu: () => void; theme: "dark" | "light"; setTheme: (value: "dark" | "light") => void; onRefresh: () => void; loading: boolean; syncLogs: SyncLogItem[]; view: DashboardView }) {
+function TopHeader({ onMenu, theme, setTheme, onRefresh, loading, syncLogs, view, userRole }: { onMenu: () => void; theme: "dark" | "light"; setTheme: (value: "dark" | "light") => void; onRefresh: () => void; loading: boolean; syncLogs: SyncLogItem[]; view: DashboardView; userRole?: string }) {
   const [showSyncLog, setShowSyncLog] = useState(false);
-  const breadcrumb = view === "access" ? "Cadastro" : view === "client" ? "Visão por cliente" : "Visão executiva";
+  const breadcrumb = view === "access" ? "Cadastro" : view === "client" ? "Visão por cliente" : view === "collaborator" ? "Visão por colaborador" : "Visão executiva";
   return (
     <header className="top-header">
       <div className="top-header-left">
@@ -224,7 +238,7 @@ function TopHeader({ onMenu, theme, setTheme, onRefresh, loading, syncLogs, view
         <div className="breadcrumbs"><span>Indicadores de Serviços</span><ChevronRight size={14} /><strong>{breadcrumb}</strong></div>
       </div>
       <div className="top-header-actions">
-        <a className="source-link" href={spreadsheetSource} target="_blank" rel="noreferrer"><Database size={14} /> Fonte Sheets <ChevronRight size={13} /></a>
+        {userRole === "super_admin" && <a className="source-link" href={spreadsheetSource} target="_blank" rel="noreferrer"><Database size={14} /> Fonte Sheets <ChevronRight size={13} /></a>}
         <div className="sync-log-anchor">
           <button className="sync-status sync-status-button" onClick={() => setShowSyncLog((value) => !value)} aria-expanded={showSyncLog}><span className={`status-dot ${loading ? "status-dot-warning" : "status-dot-live"}`} /> {loading ? "atualizando base" : syncLogs[0] ? `atualizado ${formatSyncDate(syncLogs[0].at)}` : "atualização pública"}</button>
           {showSyncLog && <div className="sync-log-popover" role="dialog" aria-label="Histórico de sincronização"><div className="sync-log-title"><strong>Histórico de sincronização</strong><span>{syncLogs.length} registros</span></div>{syncLogs.length ? syncLogs.map((log, index) => <div className="sync-log-item" key={`${log.at}-${index}`}><span className={`sync-log-dot sync-log-dot-${log.status}`} /><div><strong>{log.message}</strong><small>{formatSyncDate(log.at)}</small><small>{log.counts}</small></div></div>) : <p className="sync-log-empty">Nenhuma sincronização concluída nesta sessão.</p>}</div>}
@@ -233,29 +247,6 @@ function TopHeader({ onMenu, theme, setTheme, onRefresh, loading, syncLogs, view
         <button className="icon-button" onClick={() => setTheme(theme === "dark" ? "light" : "dark")} aria-label="Alternar tema">{theme === "dark" ? <Sun size={17} /> : <Moon size={17} />}</button>
       </div>
     </header>
-  );
-}
-
-function MultiSelectFilter({ filterKey, label, value, options, icon: Icon, onChange, openFilter, setOpenFilter }: { filterKey: string; label: string; value: string[]; options: string[]; icon: typeof Filter; onChange: (value: string[]) => void; openFilter: string | null; setOpenFilter: (value: string | null) => void }) {
-  const open = openFilter === filterKey;
-  const toggle = (option: string) => {
-    onChange(value.some((item) => item === option) ? value.filter((item) => item !== option) : [...value, option]);
-    setOpenFilter(null);
-  };
-  const summary = value.length === 0 ? "Todos" : value.length === 1 ? value[0] : `${value.length} selecionados`;
-  return (
-    <div className={`multi-select-filter ${open ? "multi-select-filter-open" : ""}`}>
-      <button className="multi-select-trigger" onClick={() => setOpenFilter(open ? null : filterKey)} aria-expanded={open}>
-        <Icon size={14} /><span className="multi-select-copy"><small>{label}</small><strong title={summary}>{summary}</strong></span><ChevronDown size={14} className="multi-select-chevron" />
-      </button>
-      {open && <div className="multi-select-menu">
-        <div className="multi-select-menu-head"><span>{label}</span><button onClick={() => { onChange([]); setOpenFilter(null); }}>Limpar</button></div>
-        <div className="multi-select-options">
-          {options.map((option) => <button key={option} className={`multi-select-option ${value.includes(option) ? "multi-select-option-selected" : ""}`} onClick={() => toggle(option)}><span>{option}</span>{value.includes(option) && <Check size={14} />}</button>)}
-          {!options.length && <div className="multi-select-empty">Nenhuma opção disponível</div>}
-        </div>
-      </div>}
-    </div>
   );
 }
 
@@ -306,12 +297,60 @@ function FilterBar({ filters, setFilters, options, onClear }: { filters: FilterS
   );
 }
 
-function KpiCard({ icon: Icon, label, value, detail, tone, trend, trendPositive }: { icon: typeof Activity; label: string; value: string; detail: string; tone: Tone; trend?: string; trendPositive?: boolean }) {
-  return <article className="kpi-card"><div className={`kpi-icon kpi-icon-${tone}`}><Icon size={17} /></div><div className="kpi-label">{label}</div><div className="kpi-value-row"><strong>{value}</strong>{trend && <span className={`kpi-trend ${trendPositive === false ? "kpi-trend-negative" : `kpi-trend-${tone}`}`}>{trendPositive === false ? <TrendingDown size={12} /> : <TrendingUp size={12} />}{trend}</span>}</div><div className="kpi-detail">{detail}</div></article>;
+function KpiCard({ icon: Icon, label, value, detail, tone, trend, trendPositive, onViewList }: { icon: typeof Activity; label: string; value: string; detail: string; tone: Tone; trend?: string; trendPositive?: boolean; onViewList?: () => void }) {
+  return <article className={`kpi-card ${onViewList ? "kpi-card-actionable" : ""}`}>
+    <div className="kpi-card-topline"><div className={`kpi-icon kpi-icon-${tone}`}><Icon size={17} /></div>{onViewList && <button type="button" className="kpi-list-button" onClick={onViewList}><Search size={12} /> Ver lista</button>}</div>
+    <div className="kpi-label">{label}</div>
+    <div className="kpi-value-row"><strong>{value}</strong>{trend && <span className={`kpi-trend ${trendPositive === false ? "kpi-trend-negative" : `kpi-trend-${tone}`}`}>{trendPositive === false ? <TrendingDown size={12} /> : <TrendingUp size={12} />}{trend}</span>}</div>
+    <div className="kpi-detail">{detail}</div>
+  </article>;
+}
+
+type ListDialogKind = "clients" | "cnpjs";
+
+function ActiveListDialog({ kind, snapshot, onClose }: { kind: ListDialogKind; snapshot: DashboardSnapshot; onClose: () => void }) {
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const cnpjRows = useMemo(() => buildActiveCnpjRows(snapshot.activeRows), [snapshot.activeRows]);
+  const normalizedQuery = normalize(query);
+  const clientRows = snapshot.clientRows.filter((row) => !normalizedQuery || normalize(row.client).includes(normalizedQuery));
+  const filteredCnpjRows = cnpjRows.filter((row) => !normalizedQuery || normalize(row.cnpj).includes(normalizedQuery));
+  const isClients = kind === "clients";
+  const total = isClients ? snapshot.clientRows.length : cnpjRows.length;
+  const visibleCount = isClients ? clientRows.length : filteredCnpjRows.length;
+
+  useEffect(() => {
+    searchRef.current?.focus();
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
+  return <div className="list-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+    <section className="list-dialog" role="dialog" aria-modal="true" aria-labelledby="active-list-title">
+      <header className="list-dialog-header">
+        <div className="list-dialog-heading"><div className={`list-dialog-icon ${isClients ? "list-dialog-icon-blue" : "list-dialog-icon-teal"}`}>{isClients ? <Users size={17} /> : <Building2 size={17} />}</div><div><div className="panel-eyebrow">LISTA FILTRADA · {snapshot.period.label.toUpperCase()}</div><h2 id="active-list-title">{isClients ? "Clientes ativos" : "CNPJs em operação"}</h2><p>{isClients ? "Clientes únicos vigentes no recorte selecionado." : "CNPJs distintos vinculados à carteira ativa."}</p></div></div>
+        <button type="button" className="list-dialog-close" onClick={onClose} aria-label="Fechar lista"><X size={17} /></button>
+      </header>
+      <div className="list-dialog-toolbar"><label className="list-dialog-search"><Search size={15} /><input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={isClients ? "Buscar cliente por nome..." : "Buscar por CNPJ..."} aria-label={isClients ? "Buscar cliente por nome" : "Buscar por CNPJ"} />{query && <button type="button" onClick={() => setQuery("")} aria-label="Limpar busca"><X size={13} /></button>}</label><span className="list-dialog-count">{formatNumber(visibleCount)} de {formatNumber(total)}</span></div>
+      <div className="list-dialog-body">
+        {isClients ? <div className="active-list-grid active-client-list">{clientRows.map((row) => <article className="active-list-card" key={row.client}><div className="active-list-card-title"><span className="client-avatar">{initials(row.client)}</span><div><strong title={row.client}>{row.client}</strong><small>{row.city} · {row.region}</small></div></div><div className="active-list-card-meta"><span><b>{formatNumber(row.services)}</b> serviços</span><span><b>{formatNumber(row.cnpjs)}</b> CNPJs</span><span className="active-list-brand" title={row.brand}>{row.brand}</span></div></article>)}</div> : <div className="active-list-table-wrap"><table className="active-list-table"><thead><tr><th>CNPJ</th><th>Cliente</th><th>Serviços</th><th>Início</th><th>Fim</th><th>Local</th></tr></thead><tbody>{filteredCnpjRows.map((row: ActiveCnpjRow) => <tr key={row.cnpj}><td><strong className="cnpj-value">{row.cnpj}</strong></td><td><strong>{row.client}</strong></td><td><span className="service-chip-list" title={row.services.join(", ")}>{row.services.length ? row.services.join(" · ") : "—"}</span></td><td>{row.startDate ? formatDate(row.startDate) : "—"}</td><td>{row.endDate ? formatDate(row.endDate) : "Em aberto"}</td><td>{row.city}{row.state !== "—" ? ` · ${row.state}` : ""}</td></tr>)}</tbody></table></div>}
+        {!visibleCount && <div className="empty-state list-dialog-empty"><Search size={20} /><strong>Nenhum resultado encontrado</strong><span>Altere o termo de busca ou revise os filtros globais.</span></div>}
+      </div>
+      <footer className="list-dialog-footer"><span>Filtros aplicados: <strong>{snapshot.period.label}</strong></span><button type="button" className="btn-modal-close" onClick={onClose}>Fechar</button></footer>
+    </section>
+  </div>;
 }
 
 function Panel({ title, eyebrow, icon: Icon, children, className = "" }: { title: string; eyebrow?: string; icon?: typeof Activity; children: ReactNode; className?: string }) {
-  return <section className={`panel ${className}`}><div className="panel-header"><div className="panel-title-block">{Icon && <div className="panel-icon"><Icon size={16} /></div>}<div><div className="panel-eyebrow">{eyebrow}</div><h2>{title}</h2></div></div><button className="panel-menu" aria-label={`Opções de ${title}`}><Settings2 size={14} /></button></div>{children}</section>;
+  return <section className={`panel ${className}`}><div className="panel-header"><div className="panel-title-block">{Icon && <div className="panel-icon"><Icon size={16} /></div>}<div><div className="panel-eyebrow">{eyebrow}</div><h2>{title}</h2></div></div></div>{children}</section>;
 }
 
 function formatMovementDate(value: string): string {
@@ -361,7 +400,7 @@ function TimelineChart({ series }: { series: DashboardSnapshot["timeline"] }) {
 
 function ServiceBars({ items, total }: { items: DashboardSnapshot["serviceBreakdown"]; total: number }) {
   const max = Math.max(...items.map((item) => item.value), 1);
-  return <div className="service-bars"><div className="service-total"><span>SERVIÇOS ÚNICOS POR CLIENTE</span><strong>Total: {formatNumber(total)}</strong></div>{items.slice(0, 8).map((item, index) => <div className="service-row" key={item.label}><div className="service-row-label"><span title={item.label}>{item.label}</span><strong>{formatNumber(item.value)}</strong><em>{item.percent.toFixed(1).replace(".", ",")}%</em></div><div className="service-track"><span style={{ width: `${Math.max(4, (item.value / max) * 100)}%`, background: `linear-gradient(90deg, ${SERVICE_COLORS[index % SERVICE_COLORS.length]}, color-mix(in srgb, ${SERVICE_COLORS[index % SERVICE_COLORS.length]} 60%, white))` }} /></div></div>)}</div>;
+  return <div className="service-bars"><div className="service-total"><span>SERVIÇOS ÚNICOS POR CLIENTE</span><strong>Total: {formatNumber(total)}</strong></div><div className="service-bars-list" tabIndex={0} aria-label="Distribuição completa por serviço">{items.map((item, index) => <div className="service-row" key={item.label}><div className="service-row-label"><span title={item.label}>{item.label}</span><strong>{formatNumber(item.value)}</strong><em>{item.percent.toFixed(1).replace(".", ",")}%</em></div><div className="service-track"><span style={{ width: `${Math.max(4, (item.value / max) * 100)}%`, background: `linear-gradient(90deg, ${SERVICE_COLORS[index % SERVICE_COLORS.length]}, color-mix(in srgb, ${SERVICE_COLORS[index % SERVICE_COLORS.length]} 60%, white))` }} /></div></div>)}</div></div>;
 }
 
 function ClientServiceBars({ items }: { items: DashboardSnapshot["clientServiceBreakdown"] }) {
@@ -389,28 +428,35 @@ function DataTable({ rows }: { rows: DashboardSnapshot["clientRows"] }) {
 
 function GeneralPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   const growth = snapshot.kpis.clientsYoYPercent;
+  const [listKind, setListKind] = useState<ListDialogKind | null>(null);
+  const closeList = useCallback(() => setListKind(null), []);
   return <>
     <div className="page-heading"><div><div className="page-eyebrow"><span className="status-dot status-dot-live" /> Visão consolidada</div><h1>Indicadores gerais</h1><p>Movimentação, retenção e distribuição da carteira por cliente.</p></div><div className="page-heading-meta"><span>{snapshot.period.label}</span><span className="heading-meta-divider" /><span>{formatPeriodDate(snapshot.period.startDate)} — {formatDate(snapshot.period.endDate)}</span></div></div>
-    <div className="kpi-grid"><KpiCard icon={Users} label="Clientes ativos" value={formatNumber(snapshot.kpis.clients)} detail="clientes únicos com vigência no recorte" tone="blue" trend={growth === null ? undefined : `${growth >= 0 ? "+" : ""}${growth.toFixed(1).replace(".", ",")}%`} trendPositive={growth === null ? undefined : growth >= 0} /><KpiCard icon={Building2} label="CNPJs em operação" value={formatNumber(snapshot.kpis.cnpjs)} detail="cadastros vinculados aos clientes" tone="teal" /><KpiCard icon={Activity} label="LTV médio (retenção)" value={`${snapshot.kpis.ltvYears.toFixed(1).replace(".", ",")} anos`} detail="tempo médio de serviço ativo" tone="violet" /><KpiCard icon={Store} label="Universo O Boticário" value={`${snapshot.kpis.boticarioShare.toFixed(1).replace(".", ",")}%`} detail={`${formatNumber(snapshot.kpis.boticarioClients)} Boticário · ${formatNumber(snapshot.kpis.otherBrandClients)} outras marcas`} tone="boticario" trend={`${formatNumber(snapshot.kpis.boticarioClients)} clientes`} /></div>
+    <div className="kpi-grid"><KpiCard icon={Users} label="Clientes ativos" value={formatNumber(snapshot.kpis.clients)} detail="clientes únicos com vigência no recorte" tone="blue" trend={growth === null ? undefined : `${growth >= 0 ? "+" : ""}${growth.toFixed(1).replace(".", ",")}%`} trendPositive={growth === null ? undefined : growth >= 0} onViewList={() => setListKind("clients")} /><KpiCard icon={Building2} label="CNPJs em operação" value={formatNumber(snapshot.kpis.cnpjs)} detail="cadastros vinculados aos clientes" tone="teal" onViewList={() => setListKind("cnpjs")} /><KpiCard icon={Activity} label="LTV médio (retenção)" value={`${snapshot.kpis.ltvYears.toFixed(1).replace(".", ",")} anos`} detail="tempo médio de serviço ativo" tone="violet" /><KpiCard icon={Store} label="Universo O Boticário" value={`${snapshot.kpis.boticarioShare.toFixed(1).replace(".", ",")}%`} detail={`${formatNumber(snapshot.kpis.boticarioClients)} Boticário · ${formatNumber(snapshot.kpis.otherBrandClients)} outras marcas`} tone="boticario" trend={`${formatNumber(snapshot.kpis.boticarioClients)} clientes`} /></div>
     <div className="content-grid content-grid-top"><Panel title={`Clientes novos · ${formatNumber(snapshot.newClients.length)} no período`} icon={Users} className="movement-panel"><MovementList title="Clientes novos" items={snapshot.newClients} tone="positive" /></Panel><Panel title={`Clientes cancelados · ${formatNumber(snapshot.cancelledClients.length)} no período`} icon={CircleAlert} className="movement-panel"><MovementList title="Clientes cancelados" items={snapshot.cancelledClients} tone="negative" /></Panel><Panel title="Linha do tempo" icon={Activity} className="timeline-panel"><TimelineChart series={snapshot.timeline} /></Panel></div>
     <div className="content-grid content-grid-three"><Panel title="Distribuição por serviço" eyebrow="SERVIÇOS · CLIENTES ÚNICOS" icon={Layers3}><ServiceBars items={snapshot.serviceBreakdown} total={snapshot.serviceTotal} /></Panel><Panel title="Clientes × serviços" eyebrow="CLIENTES ÚNICOS · PARTICIPAÇÃO" icon={BarChart3}><ClientServiceBars items={snapshot.clientServiceBreakdown} /></Panel><Panel title="Mix por clube" eyebrow="CLIENTES ÚNICOS · PARTICIPAÇÃO" icon={Target}><ClubBreakdown items={snapshot.clubBreakdown} /></Panel></div>
     <div className="content-grid content-grid-map"><Panel title="Mapa dos serviços oferecidos" eyebrow="CLIENTES ATIVOS POR ESTADO" icon={MapIcon} className="panel-map"><BrazilMap snapshot={snapshot} /></Panel><Panel title="Clientes em foco" eyebrow="MAIOR CONCENTRAÇÃO DE SERVIÇOS" icon={Users} className="panel-table"><DataTable rows={snapshot.clientRows} /></Panel></div>
+    {listKind && <ActiveListDialog kind={listKind} snapshot={snapshot} onClose={closeList} />}
   </>;
 }
 
-function ClientPicker({ clients, value, onChange }: { clients: string[]; value: string; onChange: (value: string) => void }) {
+function ClientPicker({ clients, activeClients, value, onChange }: { clients: string[]; activeClients: Set<string>; value: string; onChange: (value: string) => void }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const [showClosed, setShowClosed] = useState(false);
   const query = normalize(search);
-  const matches = query ? clients.filter((client) => normalize(client).includes(query)) : clients;
+  // Por padrão só entram clientes com serviço ativo (mesmo critério do KPI "Clientes ativos"); encerrados são opcionais.
+  const activeList = useMemo(() => clients.filter((client) => activeClients.has(normalize(client))), [clients, activeClients]);
+  const pool = showClosed ? clients : activeList;
+  const matches = query ? pool.filter((client) => normalize(client).includes(query)) : pool;
   const openPicker = () => {
     setSearch("");
     setOpen(true);
   };
   return <div className="client-picker">
-    <div className="client-picker-label"><Users size={13} /> Cliente selecionado <span className="client-picker-count">{clients.length} clientes</span></div>
+    <div className="client-picker-label"><Users size={13} /> Cliente selecionado <span className="client-picker-count" title={`${activeList.length} com serviço ativo · ${clients.length} na base (inclui encerrados)`}>{activeList.length} ativos</span></div>
     <div className="client-picker-input-wrap"><Users size={15} /><input value={open ? search : value} onChange={(event) => { setSearch(event.target.value); setOpen(true); }} onFocus={openPicker} onBlur={() => window.setTimeout(() => { setOpen(false); setSearch(""); }, 120)} placeholder={value && !open ? value : "Buscar cliente por nome..."} role="combobox" aria-expanded={open} aria-controls="client-picker-options" aria-autocomplete="list" />{value && <button className="client-picker-clear" onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(""); setSearch(""); setOpen(true); }} aria-label="Limpar cliente"><X size={14} /></button>}</div>
-    {open && <div className="client-picker-options" id="client-picker-options"><div className="client-picker-options-head"><span>{query ? `${matches.length} encontrados` : `${clients.length} clientes disponíveis`}</span><small>{query ? "resultado da busca" : "role para ver a lista completa"}</small></div>{matches.length ? matches.map((client) => <button key={client} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(client); setSearch(""); setOpen(false); }}>{client}</button>) : <span>Nenhum cliente encontrado</span>}</div>}
+    {open && <div className="client-picker-options" id="client-picker-options"><div className="client-picker-options-head"><span>{query ? `${matches.length} encontrados` : `${clients.length} clientes disponíveis`}</span><button type="button" className="client-picker-toggle" onMouseDown={(event) => event.preventDefault()} onClick={() => setShowClosed((current) => !current)}>{showClosed ? "Ocultar encerrados" : `Mostrar encerrados (+${clients.length - activeList.length})`}</button></div>{matches.length ? matches.map((client) => <button key={client} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(client); setSearch(""); setOpen(false); }}>{client}{!activeClients.has(normalize(client)) && <em className="client-picker-closed"> · encerrado</em>}</button>) : <span>Nenhum cliente encontrado</span>}</div>}
   </div>;
 }
 
@@ -452,47 +498,31 @@ function toTimestamp(value: string): number | null {
   return Number.isNaN(timestamp) ? null : timestamp;
 }
 
-function ClientActiveChart({ detail }: { detail: ClientDetail }) {
-  const series = detail.activeSeries;
-  const width = 720;
-  const height = 205;
-  const padding = { left: 30, right: 15, top: 18, bottom: 38 };
-  const max = Math.max(...series.map((item) => item.activeServices), 1);
-  const points = series.map((item, index) => ({ x: padding.left + (index / Math.max(series.length - 1, 1)) * (width - padding.left - padding.right), y: padding.top + (1 - item.activeServices / max) * (height - padding.top - padding.bottom), item }));
-  const path = points.reduce((result, point, index) => `${result}${index ? ` L ${point.x} ${point.y}` : `M ${point.x} ${point.y}`}`, "");
-  const years = Array.from(new Set(series.map((item) => item.key.slice(0, 4))));
-  const labelIndices = new Set<number>();
-  if (years.length > 2) {
-    series.forEach((item, index) => { if (index === 0 || item.key.endsWith("-01") || index === series.length - 1) labelIndices.add(index); });
-  } else {
-    const step = Math.max(1, Math.ceil(series.length / 8));
-    series.forEach((_, index) => { if (index % step === 0 || index === series.length - 1) labelIndices.add(index); });
-  }
-  return <div className="client-active-chart"><div className="chart-legend"><span><i className="legend-dot legend-blue" /> Serviços ativos</span><span className="chart-legend-note">histórico completo do cliente</span></div>{series.length ? <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Evolução mensal dos serviços ativos do cliente"><line x1={padding.left} x2={width - padding.right} y1={height - padding.bottom} y2={height - padding.bottom} className="chart-grid" /><path d={path} className="chart-line chart-line-blue" />{points.map((point, index) => <g key={point.item.key}><circle cx={point.x} cy={point.y} r="4" className="timeline-point timeline-point-blue" /><title>{point.item.label}: {point.item.activeServices} serviços ativos</title>{labelIndices.has(index) && <text x={point.x} y={height - 10} textAnchor="middle" className="chart-label">{years.length > 2 ? point.item.key.slice(0, 4) : point.item.label}</text>}</g>)}</svg> : <div className="empty-state">Sem série histórica disponível.</div>}</div>;
-}
-
 function ClientServiceTable({ detail }: { detail: ClientDetail }) {
   return <div className="client-service-table-wrap"><table className="client-service-table"><thead><tr><th>Serviço</th><th>Status</th><th>Início</th><th>Fim</th><th>Dias</th><th>CNPJs</th><th>Local</th></tr></thead><tbody>{detail.serviceHistory.map((item) => <tr key={`${item.service}-${item.startDate}`}><td><strong>{item.service}</strong><small>{item.brand}</small></td><td><span className={`status-chip ${item.status === "Ativo" ? "status-chip-positive" : item.status === "Operação Assistida" ? "status-chip-assisted" : "status-chip-neutral"}`}><span className="status-dot" />{item.status}</span></td><td>{item.startDate ? formatDate(item.startDate) : "—"}</td><td>{item.endDate ? formatDate(item.endDate) : "Em aberto"}</td><td><b>{formatNumber(item.days)}</b></td><td>{formatNumber(item.cnpjs)}</td><td>{item.city}{item.state !== "—" ? ` · ${item.state}` : ""}</td></tr>)}</tbody></table></div>;
 }
 
 function ClientEvents({ detail }: { detail: ClientDetail }) {
-  return <div className="client-events-list">{detail.events.length ? detail.events.slice(0, 12).map((item) => <div className="client-event-row" key={`${item.date}-${item.service}-${item.movement}`}><time>{formatDate(item.date)}</time><span className="client-event-dot" /><div><strong>{item.service}</strong><small>{item.movement} · {item.event} · {item.club} · {item.responsible}</small></div></div>) : <div className="empty-state"><Activity size={18} /><strong>Sem movimentações no período</strong></div>}</div>;
+  return <div className="client-events-list">{detail.events.length ? detail.events.slice(0, 12).map((item) => <div className="client-event-row" key={`${item.date}-${item.service}-${item.responsible}`}><time>{formatDate(item.date)}</time><span className="client-event-dot" /><div className="client-event-content"><strong title={item.service}>{item.service}</strong><small><span className="client-event-responsible-label">Responsável</span>{item.responsible !== "—" ? item.responsible : "Não informado"}</small></div></div>) : <div className="empty-state"><Activity size={18} /><strong>Sem movimentações no período</strong></div>}</div>;
 }
 
-function ClientPage({ detail, clients, selectedClient, onSelectClient }: { detail: ClientDetail | null; clients: string[]; selectedClient: string; onSelectClient: (client: string) => void }) {
+interface ResponsavelDoCliente { email: string; nome: string; funcoes: string[] }
+
+function ClientPage({ detail, clients, activeClients, selectedClient, onSelectClient, responsaveis, onAbrirColaborador }: { detail: ClientDetail | null; clients: string[]; activeClients: Set<string>; selectedClient: string; onSelectClient: (client: string) => void; responsaveis: ResponsavelDoCliente[]; onAbrirColaborador: (email: string | null) => void }) {
   const relationshipYears = detail ? detail.metrics.relationshipDays / 365 : 0;
   return <>
-    <div className="page-heading"><div><div className="page-eyebrow"><span className="status-dot status-dot-blue" /> Recorte por cliente</div><h1>{detail?.client ?? "Visão por cliente"}</h1><p>{detail ? `${detail.brand} · ${detail.city}${detail.state !== "—" ? `, ${detail.state}` : ""} · ${detail.region} · histórico completo até ${formatDate(detail.referenceEndDate)}` : "Selecione um cliente para analisar sua carteira de serviços."}</p></div><ClientPicker clients={clients} value={selectedClient} onChange={onSelectClient} /></div>
+    <div className="page-heading"><div><div className="page-eyebrow"><span className="status-dot status-dot-blue" /> Recorte por cliente</div><h1>{detail?.client ?? "Visão por cliente"}</h1><p>{detail ? `${detail.brand} · ${detail.city}${detail.state !== "—" ? `, ${detail.state}` : ""} · ${detail.region} · histórico completo até ${formatDate(detail.referenceEndDate)}` : "Selecione um cliente para analisar sua carteira de serviços."}</p></div><div className="client-heading-actions"><ClientPicker clients={clients} activeClients={activeClients} value={selectedClient} onChange={onSelectClient} /><button type="button" className={`collab-open-button ${selectedClient ? "" : "collab-open-button-oculto"}`} onClick={() => onAbrirColaborador(responsaveis[0]?.email ?? null)} disabled={!selectedClient} aria-hidden={!selectedClient} tabIndex={selectedClient ? 0 : -1}><UserRound size={14} /> Ver por colaborador</button></div></div>
     {!detail ? <div className="client-empty-state"><div className="client-empty-icon"><Users size={24} /></div><h2>Selecione um cliente para visualizar o histórico</h2><p>Use a busca acima para analisar serviços, CNPJs, datas de vigência e movimentações de um cliente específico.</p></div> : <>
+      {responsaveis.length > 0 && <div className="client-responsibles"><span>Colaboradores:</span>{responsaveis.map((r) => <button type="button" key={r.email} className="collab-chip" title={r.funcoes.join(", ")} onClick={() => onAbrirColaborador(r.email)}>{r.nome}</button>)}</div>}
       <div className="client-detail-kpi-grid"><ClientMetricCard icon={Layers3} label="Serviços ativos" value={formatNumber(detail.metrics.activeServices)} detail={`${formatNumber(detail.metrics.historicalServices)} no histórico`} tone="blue" /><ClientMetricCard icon={Building2} label="CNPJs vinculados" value={formatNumber(detail.metrics.cnpjs)} detail="cadastros distintos" tone="teal" /><ClientMetricCard icon={Activity} label="Tempo médio" value={`${formatNumber(detail.metrics.averageActiveDays)} dias`} detail="por serviço" tone="violet" /><ClientMetricCard icon={CalendarClock} label="Relacionamento" value={`${relationshipYears.toFixed(1).replace(".", ",")} anos`} detail={`${formatDate(detail.metrics.firstServiceDate)} início`} tone="amber" /></div>
       <div className="content-grid content-grid-wide"><Panel title="Histórico dos serviços" eyebrow="INÍCIO · FIM · DURAÇÃO" icon={Layers3} className="panel-large client-gantt-panel"><ClientGantt detail={detail} /></Panel><Panel title="Resumo do cliente" eyebrow="SITUAÇÃO ATUAL" icon={Users}><div className="client-summary-list"><div><span>Serviços no filtro</span><strong>{formatNumber(detail.metrics.historicalServices)}</strong></div><div><span>Primeiro serviço</span><strong>{formatDate(detail.metrics.firstServiceDate)}</strong></div><div><span>Última movimentação</span><strong>{formatDate(detail.metrics.lastMovementDate)}</strong></div><div><span>Encerrados</span><strong>{formatNumber(detail.metrics.closedServices)}</strong></div></div></Panel></div>
-      <div className="content-grid content-grid-wide"><Panel title="Evolução dos serviços ativos" eyebrow="HISTÓRICO MENSAL" icon={Activity} className="panel-large"><ClientActiveChart detail={detail} /></Panel><Panel title="Movimentações do cliente" eyebrow="FATOS MOVIMENTAÇÃO" icon={Zap}><ClientEvents detail={detail} /></Panel></div>
+      <Panel title="Serviço e Responsáveis" eyebrow="FATOS MOVIMENTAÇÃO" icon={Zap}><ClientEvents detail={detail} /></Panel>
       <Panel title="Detalhamento dos serviços" eyebrow="DATAS E VIGÊNCIAS" icon={Database}><ClientServiceTable detail={detail} /></Panel>
     </>}
   </>;
 }
 
-function LoadingState() { return <div className="state-card"><div className="loading-orbit"><span /><span /><span /></div><h2>Conectando à base de indicadores</h2><p>Consultando as abas públicas do Google Sheets e preparando os filtros globais.</p><div className="loading-lines"><span /><span /><span /></div></div>; }
+function LoadingState() { return <div className="state-card"><div className="loading-orbit"><span /><span /><span /></div><h2>Conectando à base de indicadores</h2><p>{IS_GAS ? "Lendo a planilha de indicadores e preparando os filtros globais." : "Consultando as abas públicas do Google Sheets e preparando os filtros globais."}</p><div className="loading-lines"><span /><span /><span /></div></div>; }
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) { return <div className="state-card state-card-error"><div className="error-symbol"><CircleAlert size={22} /></div><h2>Não foi possível atualizar os dados</h2><p>{message}</p><button className="primary-button" onClick={onRetry}><RefreshCw size={15} /> Tentar novamente</button><a href={spreadsheetSource} target="_blank" rel="noreferrer">Abrir planilha de origem</a></div>; }
 
 export default function Home() {
@@ -520,11 +550,19 @@ export default function Home() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [view, setView] = useState<DashboardView>(() => window.location.pathname.includes("clientes") ? "client" : window.location.pathname.includes("cadastro") ? "access" : "general");
+  const [view, setView] = useState<DashboardView>(() => window.location.pathname.includes("clientes") ? "client" : window.location.pathname.includes("colaboradores") ? "collaborator" : window.location.pathname.includes("cadastro") ? "access" : "general");
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [selectedClient, setSelectedClient] = useState("");
+  const [selectedCollaborator, setSelectedCollaborator] = useState("");
+  const [collaboratorClientFilter, setCollaboratorClientFilter] = useState<string[]>([]);
+  const carteiraQuery = trpc.colaboradores.carteira.useQuery(undefined, {
+    enabled: isAllowed,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 5 * 60 * 1000,
+  });
   const userAllowedServices = useMemo(() => {
-    if (authQuery.data?.role === "admin") return null;
+    if (authQuery.data?.role !== "user") return null;
     const list = authQuery.data?.allowedServices;
     return Array.isArray(list) ? list : null;
   }, [authQuery.data]);
@@ -536,8 +574,38 @@ export default function Home() {
 
   const options = useMemo<FilterOptions>(() => generalData ? buildFilterOptions(generalData) : { regions: [], services: [], brands: [], years: [], latestDate: "" }, [generalData]);
   const clientOptions = useMemo(() => data ? buildClientOptions(data) : [], [data]);
+  const activeClientNames = useMemo(() => data ? buildActiveClientNames(data) : new Set<string>(), [data]);
   const snapshot = useMemo(() => generalData ? deriveSnapshot(generalData, filters) : null, [generalData, filters]);
   const clientDetail = useMemo(() => data && selectedClient ? deriveClientDetail(data, selectedClient) : null, [data, selectedClient]);
+  const clientIndex = useMemo<Map<string, ClienteInfo>>(() => data ? montarIndiceClientes(data.vigencia) : new Map(), [data]);
+  const colaboradoresPayload = useMemo<ColaboradoresPayload | undefined>(() => aplicarDadosDeExemplo(carteiraQuery.data as ColaboradoresPayload | undefined, clientIndex), [carteiraQuery.data, clientIndex]);
+  const responsaveisDoCliente = useMemo<ResponsavelDoCliente[]>(() => {
+    if (!colaboradoresPayload || !selectedClient) return [];
+    const alvo = chaveCliente(selectedClient);
+    const porEmail = new Map<string, ResponsavelDoCliente>();
+    colaboradoresPayload.vinculos.forEach((v) => {
+      if (chaveCliente(v.cliente) !== alvo) return;
+      const colab = colaboradoresPayload.colaboradores.find((c) => c.email === v.email);
+      if (!colab) return;
+      const item = porEmail.get(v.email) ?? { email: v.email, nome: colab.nome, funcoes: [] };
+      const servico = resolverFuncao(v.funcao).servico;
+      if (!item.funcoes.includes(servico)) item.funcoes.push(servico);
+      porEmail.set(v.email, item);
+    });
+    return Array.from(porEmail.values()).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [colaboradoresPayload, selectedClient]);
+  const abrirColaborador = useCallback((email: string | null) => {
+    // Vem da página Por Cliente: leva o cliente escolhido como filtro e seleciona quem o atende.
+    setCollaboratorClientFilter(selectedClient ? [selectedClient] : []);
+    setSelectedCollaborator(email ?? "");
+    setView("collaborator");
+    setBrowserPath("/colaboradores");
+  }, [selectedClient]);
+  const abrirClienteDoColaborador = useCallback((cliente: string) => {
+    setSelectedClient(cliente);
+    setView("client");
+    setBrowserPath("/clientes");
+  }, []);
   const clearFilters = useCallback(() => setFilters(DEFAULT_FILTERS), []);
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
   useEffect(() => {
@@ -549,7 +617,7 @@ export default function Home() {
     return <div className="auth-loading-screen"><div className="loading-orbit"><span /><span /><span /></div><strong>Verificando seu acesso...</strong></div>;
   }
   if (!isAllowed) {
-    return <LoginOverlay />;
+    return <LoginOverlay email={authQuery.data?.email ?? null} />;
   }
 
   return (
@@ -557,7 +625,7 @@ export default function Home() {
     <a className="skip-link" href="#main-content">Pular para o conteúdo principal</a>
     <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} view={view} setView={setView} mobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} user={authQuery.data} onLogout={handleLogout} />
     <button type="button" className={`mobile-nav-overlay ${mobileNavOpen ? "mobile-nav-overlay-open" : ""}`} aria-label="Fechar menu lateral" onClick={() => setMobileNavOpen(false)} />
-    <div className="app-main"><TopHeader onMenu={() => { setCollapsed(false); setMobileNavOpen(true); }} theme={theme} setTheme={setTheme} onRefresh={refresh} loading={loading} syncLogs={syncLogs} view={view} /><main id="main-content" className="dashboard-main">{syncNotice && <div className="sync-notice" role="status"><CircleAlert size={15} />{syncNotice}</div>}{view === "general" && <FilterBar filters={filters} setFilters={setFilters} options={options} onClear={clearFilters} />}{view === "access" ? (authQuery.data?.role === "admin" ? <UserManagementModal mode="page" isOpen={true} onClose={() => setView("general")} currentUserEmail={authQuery.data?.email} availableServices={options.services} /> : <div className="access-denied-card"><Shield size={24} /><h2>Acesso restrito</h2><p>A página Cadastro está disponível somente para administradores.</p></div>) : loading && !snapshot ? <LoadingState /> : !snapshot && error ? <ErrorState message={error} onRetry={refresh} /> : snapshot ? (view === "general" ? <GeneralPage snapshot={snapshot} /> : <ClientPage detail={clientDetail} clients={clientOptions} selectedClient={selectedClient} onSelectClient={setSelectedClient} />) : null}</main><footer className="app-footer"><span><span className="status-dot status-dot-live" /> Dados conectados via Google Sheets</span><span>Indicadores de Serviços · {formatNumber(data?.fatos.length ?? 0)} fatos carregados</span></footer>{loading && <div className="sync-blocker" role="alert" aria-live="polite"><div className="sync-blocker-card"><div className="loading-orbit"><span /><span /><span /></div><strong>{syncLogs.length ? "Atualizando indicadores" : "Conectando à base de indicadores"}</strong><p>{syncLogs.length ? "A navegação ficará bloqueada até a leitura das abas terminar." : "Consultando as abas públicas do Google Sheets."}</p></div></div>}</div>
+    <div className="app-main"><TopHeader onMenu={() => { setCollapsed(false); setMobileNavOpen(true); }} theme={theme} setTheme={setTheme} onRefresh={refresh} loading={loading} syncLogs={syncLogs} view={view} userRole={authQuery.data?.role} /><main id="main-content" className="dashboard-main">{syncNotice && <div className="sync-notice" role="status"><CircleAlert size={15} />{syncNotice}</div>}{view === "general" && <FilterBar filters={filters} setFilters={setFilters} options={options} onClear={clearFilters} />}{view === "access" ? ((authQuery.data?.role === "admin" || authQuery.data?.role === "super_admin") ? <UserManagementModal mode="page" isOpen={true} onClose={() => setView("general")} currentUserEmail={authQuery.data?.email} availableServices={options.services} /> : <div className="access-denied-card"><Shield size={24} /><h2>Acesso restrito</h2><p>A página Cadastro está disponível somente para administradores.</p></div>) : loading && !snapshot ? <LoadingState /> : !snapshot && error ? <ErrorState message={error} onRetry={refresh} /> : snapshot ? (view === "general" ? <GeneralPage snapshot={snapshot} /> : view === "collaborator" ? <ColaboradorPage payload={colaboradoresPayload} carregando={carteiraQuery.isLoading} erro={carteiraQuery.error ? "Não foi possível carregar os colaboradores agora." : null} indiceClientes={clientIndex} emailSelecionado={selectedCollaborator} onSelecionar={setSelectedCollaborator} clientesOpcoes={clientOptions} clientesFiltro={collaboratorClientFilter} onClientesFiltro={setCollaboratorClientFilter} onAbrirCliente={abrirClienteDoColaborador} usuarioNome={authQuery.data?.name} ehAdmin={authQuery.data?.role === "admin" || authQuery.data?.role === "super_admin"} /> : <ClientPage detail={clientDetail} clients={clientOptions} activeClients={activeClientNames} selectedClient={selectedClient} onSelectClient={setSelectedClient} responsaveis={responsaveisDoCliente} onAbrirColaborador={abrirColaborador} />) : null}</main><footer className="app-footer"><span><span className="status-dot status-dot-live" /> Dados conectados via Google Sheets</span><span>Indicadores de Serviços · {formatNumber(data?.fatos.length ?? 0)} fatos carregados</span></footer>{loading && <div className="sync-blocker" role="alert" aria-live="polite"><div className="sync-blocker-card"><div className="loading-orbit"><span /><span /><span /></div><strong>{syncLogs.length ? "Atualizando indicadores" : "Conectando à base de indicadores"}</strong><p>{syncLogs.length ? "A navegação ficará bloqueada até a leitura das abas terminar." : "Consultando as abas públicas do Google Sheets."}</p></div></div>}</div>
     </div>
   );
 }

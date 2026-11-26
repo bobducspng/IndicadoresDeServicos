@@ -1,7 +1,7 @@
 import type { DashboardSheets, SheetRow } from "./sheets";
 
-export type DashboardView = "general" | "client" | "access";
-export type PeriodPreset = "year" | "last6" | "month" | "semester1" | "semester2" | "quarter1" | "quarter2" | "quarter3" | "quarter4";
+export type DashboardView = "general" | "client" | "collaborator" | "access";
+export type PeriodPreset = "year" | "last6" | "month" | "previousMonth" | "semester1" | "semester2" | "quarter1" | "quarter2" | "quarter3" | "quarter4";
 
 export interface FilterState {
   regions: string[];
@@ -25,6 +25,18 @@ export interface ClientMovement {
   detail: string;
   service: string;
   club: string;
+}
+
+export interface ActiveCnpjRow {
+  cnpj: string;
+  client: string;
+  services: string[];
+  startDate: string;
+  endDate: string;
+  region: string;
+  city: string;
+  state: string;
+  brand: string;
 }
 
 export interface TimelinePoint {
@@ -95,12 +107,6 @@ export interface ClientEventPoint {
   responsible: string;
 }
 
-export interface ClientActiveSeriesPoint {
-  key: string;
-  label: string;
-  activeServices: number;
-}
-
 export interface ClientDetail {
   client: string;
   referenceEndDate: string;
@@ -115,7 +121,6 @@ export interface ClientDetail {
     lastMovementDate: string;
   };
   serviceHistory: ClientServiceHistory[];
-  activeSeries: ClientActiveSeriesPoint[];
   events: ClientEventPoint[];
   brand: string;
   city: string;
@@ -128,6 +133,7 @@ const PERIOD_LABELS: Record<PeriodPreset, string> = {
   year: "Ano",
   last6: "Últimos 6 meses",
   month: "Mês atual",
+  previousMonth: "Mês anterior",
   semester1: "1º Semestre",
   semester2: "2º Semestre",
   quarter1: "1º Trimestre",
@@ -140,6 +146,7 @@ export const PERIOD_OPTIONS: Array<{ value: PeriodPreset; label: string }> = [
   { value: "year", label: PERIOD_LABELS.year },
   { value: "last6", label: PERIOD_LABELS.last6 },
   { value: "month", label: PERIOD_LABELS.month },
+  { value: "previousMonth", label: PERIOD_LABELS.previousMonth },
   { value: "semester1", label: PERIOD_LABELS.semester1 },
   { value: "semester2", label: PERIOD_LABELS.semester2 },
   { value: "quarter1", label: PERIOD_LABELS.quarter1 },
@@ -257,6 +264,7 @@ function periodRange(latestDate: Date, preset: PeriodPreset): { start: Date; end
   if (preset === "year") return { start: new Date(Date.UTC(year, 0, 1)), end: new Date(Date.UTC(year, 11, 31, 23, 59, 59)), label: PERIOD_LABELS[preset] };
   if (preset === "last6") return { start: new Date(Date.UTC(year, month - 5, 1)), end, label: PERIOD_LABELS[preset] };
   if (preset === "month") return { start: new Date(Date.UTC(year, month, 1)), end, label: PERIOD_LABELS[preset] };
+  if (preset === "previousMonth") return { start: new Date(Date.UTC(year, month - 1, 1)), end: new Date(Date.UTC(year, month, 0, 23, 59, 59)), label: PERIOD_LABELS[preset] };
   if (preset === "semester1") return { start: new Date(Date.UTC(year, 0, 1)), end: new Date(Date.UTC(year, 5, 30, 23, 59, 59)), label: PERIOD_LABELS[preset] };
   if (preset === "semester2") return { start: new Date(Date.UTC(year, 6, 1)), end: new Date(Date.UTC(year, 11, 31, 23, 59, 59)), label: PERIOD_LABELS[preset] };
   const quarter = Number(preset.replace("quarter", "")) - 1;
@@ -311,16 +319,17 @@ function dateInside(value: unknown, start: Date, end: Date): boolean {
 
 function overlapsPeriod(row: SheetRow, start: Date, end: Date): boolean {
   const rowStart = toDate(row["Início"]);
-  const rowEnd = toDate(row["Fim"]);
+  const rowEnd = fixedTermEndDate(row);
   if (!rowStart && !rowEnd) return true;
   return (rowStart ?? new Date("1900-01-01T00:00:00Z")) <= end && (rowEnd ?? new Date("2999-12-31T23:59:59Z")) >= start;
 }
 
 function activeAtEnd(row: SheetRow, end: Date): boolean {
   const rowStart = toDate(row["Início"]);
-  const rowEnd = toDate(row["Fim"]);
+  const rowEnd = fixedTermEndDate(row);
   if (rowStart && rowStart > end) return false;
   if (rowEnd && rowEnd < end) return false;
+  if (isFixedTermCompletionStage(row)) return false;
   const status = normalize(row["Situação"]);
   return !rowEnd || status.startsWith("ATIVO") || rowEnd >= end;
 }
@@ -343,8 +352,56 @@ function formatDetail(row: SheetRow): string {
   return `${first} · ${service}`;
 }
 
+const SPOT_F360_PIPE_ID = "302416833";
+const PIPE_ID_FIELDS = ["Pipe", "Pipe ID", "ID Pipe", "ID do Pipe", "Pipeline ID"];
+
+function isSpotF360(row: SheetRow): boolean {
+  const service = normalize(row["Serviço"] ?? row["Serviço(s) Afetado(s)"]);
+  if (!service.includes("SPOT F360")) return false;
+
+  // As abas públicas atuais não expõem o identificador do pipe. Quando ele
+  // existir em uma sincronização futura, valide-o sem quebrar o formato atual.
+  const pipeValue = PIPE_ID_FIELDS.map((field) => asText(row[field])).find(Boolean);
+  if (!pipeValue) return true;
+  const digits = pipeValue.replace(/\D/g, "");
+  return !digits || digits === SPOT_F360_PIPE_ID;
+}
+
 function isOperationAssisted(row: SheetRow): boolean {
   return normalize(row["Serviço"]).includes("OPERACAO ASSISTIDA");
+}
+
+function isFixedTermService(row: SheetRow): boolean {
+  return isOperationAssisted(row) || isSpotF360(row);
+}
+
+function isFixedTermCompletionStage(row: SheetRow): boolean {
+  if (!isFixedTermService(row)) return false;
+  const stageFields = ["Etapa", "Etapa Pipefy", "Etapa do Pipefy", "Fase", "Stage", "Status", "Situação"];
+  return stageFields.some((field) => normalize(row[field]).includes("CONCLUID"));
+}
+
+function fixedTermEndDate(row: SheetRow): Date | null {
+  const explicitEnd = toDate(row["Fim"]);
+  if (explicitEnd) return explicitEnd;
+  if (!isFixedTermService(row)) return null;
+  return toDate(row["Data Desativação"])
+    ?? toDate(row["Data Conclusão"])
+    ?? (isFixedTermCompletionStage(row) ? toDate(row["Data"]) : null);
+}
+
+function isFixedTermCompletion(row: SheetRow): boolean {
+  if (!isFixedTermService(row)) return false;
+  const movement = normalize(row["Tipo Movimentação"]);
+  const event = normalize(row["Evento Cliente"]);
+  const source = normalize(row["Fonte"]);
+  return movement.includes("CANCELAMENTO")
+    || movement.includes("CONCLUID")
+    || event.includes("CONCLUID")
+    || event === "CLIENTE PERDIDO"
+    || source.includes("FIM PREVISTO")
+    || source.includes("CONCLUID")
+    || isFixedTermCompletionStage(row);
 }
 
 function movementList(rows: SheetRow[], type: "new" | "cancelled"): ClientMovement[] {
@@ -353,7 +410,7 @@ function movementList(rows: SheetRow[], type: "new" | "cancelled"): ClientMoveme
     const movement = normalize(row["Tipo Movimentação"]);
     return type === "new"
       ? event === "NOVO CLIENTE" || movement === "AQUISICAO" || movement === "EXPANSAO"
-      : !isOperationAssisted(row) && (event === "CLIENTE PERDIDO" || movement.includes("CANCELAMENTO"));
+      : !isFixedTermService(row) && (event === "CLIENTE PERDIDO" || movement.includes("CANCELAMENTO"));
   });
   const byClient = new Map<string, ClientMovement>();
   selected.forEach((row) => {
@@ -415,7 +472,7 @@ function timeline(rows: SheetRow[], start: Date, end: Date): TimelinePoint[] {
     const movement = normalize(row["Tipo Movimentação"]);
     const current = months.get(key) ?? { contractedServices: 0, cancelledServices: 0 };
     if (event === "NOVO CLIENTE" || movement === "AQUISICAO" || movement === "EXPANSAO") current.contractedServices += 1;
-    if (!isOperationAssisted(row) && (event === "CLIENTE PERDIDO" || movement.includes("CANCELAMENTO"))) current.cancelledServices += 1;
+    if (!isFixedTermService(row) && (event === "CLIENTE PERDIDO" || movement.includes("CANCELAMENTO"))) current.cancelledServices += 1;
     months.set(key, current);
   });
   return Array.from(months.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => ({
@@ -540,8 +597,8 @@ function clientRows(rows: SheetRow[]): DashboardSnapshot["clientRows"] {
   }).sort((a, b) => b.services - a.services || a.client.localeCompare(b.client, "pt-BR"));
 }
 
-function endOfMonth(date: Date): Date {
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0, 23, 59, 59));
+function endOfDate(date: Date): Date {
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59));
 }
 
 function daysBetween(start: Date | null, end: Date): number {
@@ -554,7 +611,7 @@ function clientHistoryRows(rows: SheetRow[], referenceEnd: Date): ClientServiceH
   rows.forEach((row) => {
     const service = asText(row["Serviço"]);
     if (!service) return;
-    const key = `${normalize(service)}|${toDateInput(row["Início"])}|${toDateInput(row["Fim"])}`;
+    const key = `${normalize(service)}|${toDateInput(row["Início"])}|${toDateInput(fixedTermEndDate(row))}`;
     byServicePeriod.set(key, [...(byServicePeriod.get(key) ?? []), row]);
   });
 
@@ -562,14 +619,15 @@ function clientHistoryRows(rows: SheetRow[], referenceEnd: Date): ClientServiceH
     const first = serviceRows[0];
     const service = asText(first["Serviço"]);
     const starts = serviceRows.map((row) => toDate(row["Início"])).filter((value): value is Date => Boolean(value));
-    const ends = serviceRows.map((row) => toDate(row["Fim"])).filter((value): value is Date => Boolean(value));
+    const ends = serviceRows.map((row) => fixedTermEndDate(row)).filter((value): value is Date => Boolean(value));
     const start = starts.length ? new Date(Math.min(...starts.map((value) => value.getTime()))) : null;
     const end = ends.length ? new Date(Math.max(...ends.map((value) => value.getTime()))) : null;
     const isAssisted = isOperationAssisted(first);
+    const hasCompletionStage = serviceRows.some(isFixedTermCompletionStage);
     // Uma data de fim preenchida encerra o ciclo na visão histórica do cliente.
-    // A exceção é Operação Assistida: seu encerramento representa a finalização
-    // prevista do período, por isso permanece identificado separadamente.
-    const isActive = Boolean(start && start <= referenceEnd && (!end || end > referenceEnd));
+    // Para Spot F360, a etapa Concluído tem o mesmo efeito mesmo antes de a
+    // integração preencher Fim/Data Desativação na aba histórica.
+    const isActive = Boolean(start && start <= referenceEnd && !hasCompletionStage && (!end || end > referenceEnd));
     const status: ClientServiceHistory["status"] = isAssisted ? "Operação Assistida" : isActive ? "Ativo" : "Encerrado";
     const durationDays = end ? daysBetween(start, end) : daysBetween(start, referenceEnd);
     const cnpjs = new Set(serviceRows.map((row) => asText(row["CNPJ"])).filter(Boolean)).size;
@@ -588,23 +646,59 @@ function clientHistoryRows(rows: SheetRow[], referenceEnd: Date): ClientServiceH
   }).sort((a, b) => (a.status === "Ativo" ? -1 : 1) - (b.status === "Ativo" ? -1 : 1) || b.startDate.localeCompare(a.startDate) || a.service.localeCompare(b.service, "pt-BR"));
 }
 
-function clientActiveSeries(history: ClientServiceHistory[], referenceEnd: Date): ClientActiveSeriesPoint[] {
-  const starts = history.map((item) => toDate(item.startDate)).filter((value): value is Date => Boolean(value));
-  if (!starts.length) return [];
-  const firstMonth = startOfMonth(new Date(Math.min(...starts.map((value) => value.getTime()))));
-  const lastMonth = startOfMonth(referenceEnd);
-  const points: ClientActiveSeriesPoint[] = [];
-  for (let cursor = new Date(firstMonth); cursor <= lastMonth; cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1))) {
-    const monthEnd = endOfMonth(cursor);
-    const activeServices = new Set(history.filter((item) => {
-      const start = toDate(item.startDate);
-      const end = toDate(item.endDate);
-      return Boolean(start && start <= monthEnd && (!end || end >= monthEnd));
-    }).map((item) => normalize(item.service))).size;
-    const key = monthKey(cursor);
-    points.push({ key, label: monthLabel(key), activeServices });
-  }
-  return points;
+function splitHistoricalServices(value: unknown): string[] {
+  return asText(value).split(",").map((service) => service.trim()).filter(Boolean);
+}
+
+function historicalRowsForClient(historyRows: SheetRow[], vigenciaRows: SheetRow[], client: string, referenceEnd: Date): SheetRow[] {
+  const normalizedClient = normalize(client);
+  const clientVigencia = vigenciaRows.filter((row) => normalize(row["Cliente"]) === normalizedClient);
+  const metadataForService = (service: string): SheetRow => clientVigencia.find((row) => normalize(row["Serviço"]) === normalize(service)) ?? {};
+  const openByService = new Map<string, SheetRow[]>();
+  const reconstructed: SheetRow[] = [];
+  const rows = historyRows
+    .filter((row) => normalize(row["Nome Cliente"]) === normalizedClient)
+    .sort((a, b) => (toDate(a["Data/Hora"])?.getTime() ?? 0) - (toDate(b["Data/Hora"])?.getTime() ?? 0));
+
+  rows.forEach((row) => {
+    const operation = normalize(row["Tipo de Operação"]);
+    const eventDate = toDate(row["Data/Hora"]) ?? toDate(row["Data Ativação"]) ?? toDate(row["Data Desativação"]);
+    const startDate = toDate(row["Data Ativação"]) ?? (operation.includes("CONTRAT") ? eventDate : null);
+    const endDate = toDate(row["Data Desativação"]) ?? ((operation.includes("CANCEL") || operation.includes("FIM PREVISTO") || operation.includes("CONCLUID")) ? eventDate : null);
+    if (!eventDate || eventDate > referenceEnd) return;
+
+    splitHistoricalServices(row["Serviço(s) Afetado(s)"]).forEach((service) => {
+      const serviceKey = normalize(service);
+      const metadata = metadataForService(service);
+      const makeRow = (start: Date | null, end: Date | null): SheetRow => ({
+        ...metadata,
+        Cliente: client,
+        Serviço: service,
+        Início: start ? toDateInput(start) : "",
+        Fim: end ? toDateInput(end) : "",
+      });
+
+      if (operation.includes("CONTRAT")) {
+        const created = makeRow(startDate, null);
+        reconstructed.push(created);
+        openByService.set(serviceKey, [...(openByService.get(serviceKey) ?? []), created]);
+        return;
+      }
+
+      if (operation.includes("CANCEL") || operation.includes("FIM PREVISTO") || operation.includes("CONCLUID")) {
+        const openRows = openByService.get(serviceKey) ?? [];
+        const open = openRows.at(-1);
+        if (open) {
+          open["Fim"] = endDate ? toDateInput(endDate) : "";
+          openByService.set(serviceKey, openRows.slice(0, -1));
+        } else {
+          reconstructed.push(makeRow(startDate, endDate));
+        }
+      }
+    });
+  });
+
+  return reconstructed;
 }
 
 export function buildClientOptions(data: DashboardSheets): string[] {
@@ -614,21 +708,53 @@ export function buildClientOptions(data: DashboardSheets): string[] {
     const key = normalize(value);
     if (key && !clients.has(key)) clients.set(key, value);
   });
+  data.historicoServicos.forEach((row) => {
+    const value = asText(row["Nome Cliente"]);
+    const key = normalize(value);
+    if (key && !clients.has(key)) clients.set(key, value);
+  });
   return Array.from(clients.values()).sort((a, b) => a.localeCompare(b, "pt-BR"));
+}
+
+/**
+ * Clientes com ao menos um serviço ativo na data mais recente da base: a mesma regra do
+ * KPI "Clientes ativos" dos Indicadores Gerais (sem filtros). Usada na lista da página Por Cliente.
+ */
+export function buildActiveClientNames(data: DashboardSheets): Set<string> {
+  const allRows = [...data.fatos, ...data.baseMensal, ...data.vigencia];
+  const latestDate = latestDateFromRows(allRows, ["Data", "Ano-Mês"]) ?? new Date();
+  const ativos = new Set<string>();
+  data.vigencia.forEach((row) => {
+    const key = normalize(row["Cliente"]);
+    if (key && activeAtEnd(row, latestDate)) ativos.add(key);
+  });
+  return ativos;
 }
 
 export function deriveClientDetail(data: DashboardSheets, client: string): ClientDetail | null {
   const normalizedClient = normalize(client);
   if (!normalizedClient) return null;
-  const allRows = [...data.fatos, ...data.vigencia, ...data.baseMensal];
-  const latestDate = latestDateFromRows(allRows, ["Data", "Ano-Mês", "Início", "Fim"]) ?? new Date();
+  const allRows = [...data.fatos, ...data.vigencia, ...data.baseMensal, ...data.historicoServicos];
+  const latestDate = latestDateFromRows(allRows, ["Data", "Ano-Mês", "Início", "Fim", "Data/Hora", "Data Ativação", "Data Desativação"]) ?? new Date();
   const range = { start: new Date("1900-01-01T00:00:00Z"), end: latestDate };
   const clientVigencia = data.vigencia.filter((row) => normalize(row["Cliente"]) === normalizedClient);
-  const historyRows = clientVigencia.filter((row) => {
+  const currentHistoryRows = clientVigencia.filter((row) => {
     const start = toDate(row["Início"]);
-    const end = toDate(row["Fim"]);
+    const end = fixedTermEndDate(row);
     return Boolean((start && start <= range.end) || (!start && end && end <= range.end));
   });
+  const reconstructedHistoryRows = historicalRowsForClient(data.historicoServicos, clientVigencia, client, range.end);
+  const historicallyClosedCycles = new Set(
+    reconstructedHistoryRows
+      .filter((row) => fixedTermEndDate(row))
+      .map((row) => `${normalize(row["Serviço"])}|${toDateInput(row["Início"])}`),
+  );
+  const reconciledCurrentRows = currentHistoryRows.filter((row) => {
+    if (fixedTermEndDate(row)) return true;
+    const cycleKey = `${normalize(row["Serviço"])}|${toDateInput(row["Início"])}`;
+    return !historicallyClosedCycles.has(cycleKey);
+  });
+  const historyRows = [...reconciledCurrentRows, ...reconstructedHistoryRows];
   const serviceHistory = clientHistoryRows(historyRows, range.end);
   if (!serviceHistory.length) return null;
 
@@ -648,12 +774,12 @@ export function deriveClientDetail(data: DashboardSheets, client: string): Clien
   const events = clientFatos
     .filter((row) => dateInside(row["Data"], range.start, range.end))
     .map((row) => {
-      const assistedClosure = isOperationAssisted(row) && normalize(row["Tipo Movimentação"]).includes("CANCELAMENTO");
+      const fixedTermClosure = isFixedTermCompletion(row);
       return {
         date: toDateInput(row["Data"]),
         service: asText(row["Serviço"]) || "—",
-        movement: assistedClosure ? "Finalização do período" : asText(row["Tipo Movimentação"]) || "—",
-        event: assistedClosure ? "Serviço concluído" : asText(row["Evento Cliente"]) || "—",
+        movement: fixedTermClosure ? "Finalização do período" : asText(row["Tipo Movimentação"]) || "—",
+        event: fixedTermClosure ? "Serviço concluído" : asText(row["Evento Cliente"]) || "—",
         club: asText(row["Clube"]) || "—",
         responsible: asText(row["Responsável"]) || "—",
       } satisfies ClientEventPoint;
@@ -677,7 +803,6 @@ export function deriveClientDetail(data: DashboardSheets, client: string): Clien
       lastMovementDate,
     },
     serviceHistory,
-    activeSeries: clientActiveSeries(serviceHistory, range.end),
     events,
     brand: asText(first?.["Marca"]) || asText(first?.["Clube"]) || "—",
     city: asText(first?.["Cidade"]) || "—",
@@ -707,11 +832,16 @@ export function filterDataByAllowedServices(data: DashboardSheets, allowedServic
     if (!service) return false;
     return allowedNormalized.has(normalize(service));
   };
+  const historicalServiceMatches = (row: SheetRow) => {
+    const services = splitHistoricalServices(row["Serviço(s) Afetado(s)"]);
+    return services.some((service) => allowedNormalized.has(normalize(service)));
+  };
   return {
     fatos: data.fatos.filter(serviceMatches),
     vigencia: data.vigencia.filter(serviceMatches),
     baseMensal: data.baseMensal.filter(serviceMatches),
     posicaoGeografica: data.posicaoGeografica,
+    historicoServicos: data.historicoServicos.filter(historicalServiceMatches),
   };
 }
 
@@ -800,4 +930,35 @@ export function formatPeriodDate(value: string): string {
   if (!value) return "—";
   const [year, month] = value.split("-");
   return year && month ? `${month}/${year}` : value;
+}
+
+export function buildActiveCnpjRows(rows: SheetRow[]): ActiveCnpjRow[] {
+  const grouped = new Map<string, ActiveCnpjRow>();
+  rows.forEach((row) => {
+    const cnpj = asText(row["CNPJ"]);
+    if (!cnpj) return;
+    const key = normalize(cnpj);
+    const current = grouped.get(key);
+    const service = asText(row["Serviço"]);
+    const startDate = toDateInput(row["Início"]);
+    const endDate = toDateInput(row["Fim"]);
+    if (!current) {
+      grouped.set(key, {
+        cnpj,
+        client: asText(row["Cliente"]) || "Cliente não informado",
+        services: service ? [service] : [],
+        startDate,
+        endDate,
+        region: asText(row["Região"]) || "—",
+        city: asText(row["Cidade"]) || "—",
+        state: asText(row["Estado"]) || "—",
+        brand: asText(row["Marca"]) || asText(row["Clube"]) || "—",
+      });
+      return;
+    }
+    if (service && !current.services.some((item) => normalize(item) === normalize(service))) current.services.push(service);
+    if (startDate && (!current.startDate || startDate < current.startDate)) current.startDate = startDate;
+    if (endDate && (!current.endDate || endDate > current.endDate)) current.endDate = endDate;
+  });
+  return Array.from(grouped.values()).sort((a, b) => a.client.localeCompare(b.client, "pt-BR") || a.cnpj.localeCompare(b.cnpj, "pt-BR"));
 }

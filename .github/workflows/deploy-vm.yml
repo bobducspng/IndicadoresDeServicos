@@ -1,9 +1,8 @@
 name: Deploy na VM Oracle
 
+# DESATIVADO PARA PUSH: a publicação passou para o Cloud Run (deploy-cloud-run.yml).
+# Este fluxo da VM Oracle só roda manualmente.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 concurrency:
@@ -79,6 +78,8 @@ jobs:
           APP_PATH="$1"
           cd "$APP_PATH"
           pnpm install --frozen-lockfile
+          APP_ENV_FILE="$APP_PATH/.env" node scripts/ensure-role-enum.mjs
+          APP_ENV_FILE="$APP_PATH/.env" node scripts/run-production-migrations.mjs
           pnpm check
           pnpm test
           pnpm build

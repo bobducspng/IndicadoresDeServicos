@@ -29,6 +29,13 @@
       "when": 1789399550204,
       "tag": "0003_fine_meggan",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "5",
+      "when": 1793700000000,
+      "tag": "0005_colaborador_fotos",
+      "breakpoints": true
     }
   ]
 }

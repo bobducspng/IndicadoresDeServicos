@@ -1,8 +1,8 @@
 # Manual de Indicadores e Gráficos
 
 **Projeto:** Indicadores de Serviços  
-**Versão do manual:** 3.1
-**Atualizado em:** 15/09/2026
+**Versão do manual:** 3.9
+**Atualizado em:** 09/10/2026
 **Responsável:** Manus AI
 
 ## 1. Objetivo
@@ -15,7 +15,7 @@ A fonte de dados é a planilha pública compartilhada pela equipe. A aplicação
 
 ## 2. Visão geral da arquitetura de dados
 
-A aplicação carrega quatro abas da planilha em cada atualização. Os nomes abaixo são os nomes exatos utilizados no código e devem ser preservados para que a leitura automática funcione.
+A aplicação carrega cinco abas da planilha em cada atualização. Os nomes abaixo são os nomes exatos utilizados no código e devem ser preservados para que a leitura automática funcione.
 
 | Aba do Google Sheets | Finalidade no painel | Situação atual |
 |---|---|---|
@@ -23,6 +23,7 @@ A aplicação carrega quatro abas da planilha em cada atualização. Os nomes ab
 | `Vigência CNPJ x Serviço` | Base de vigência dos serviços por cliente, CNPJ, marca, localização e situação. Alimenta carteira, serviços, LTV, mapa e tabela. | Principal fonte dos indicadores de carteira. |
 | `Base Mensal` | Série mensal consolidada de clientes, serviços, entradas, saídas e churn. | Carregada e utilizada para descobrir anos e a data mais recente; os gráficos atuais recalculam as métricas diretamente das bases de fatos e vigência. |
 | `posicao geografica` | Cadastro auxiliar de região geográfica, cidade e UF. | Carregada para disponibilidade futura; a métrica atual do mapa utiliza `Cidade` e `Estado` da aba `Vigência CNPJ x Serviço`. |
+| `Histórico de Serviços` | Contratações, cancelamentos e ciclos anteriores por cliente. | Utilizada na reconstrução do histórico completo da página Por Cliente. |
 
 ### 2.1 Campos identificados por aba
 
@@ -35,7 +36,7 @@ A aplicação carrega quatro abas da planilha em cada atualização. Os nomes ab
 
 ## 3. Atualização e fluxo de leitura
 
-O botão **Reconectar** consulta novamente as quatro abas públicas. A tela inicia com um snapshot local para aparecer imediatamente e, em seguida, substitui os dados pelo resultado mais recente da planilha quando a consulta termina.
+O botão **Reconectar** consulta novamente as cinco abas públicas. A tela inicia com um snapshot local para aparecer imediatamente e, em seguida, substitui os dados pelo resultado mais recente da planilha quando a consulta termina.
 
 Os dados são consultados sem credenciais privadas por meio do endereço público da planilha. Se a planilha deixar de estar publicada ou sofrer alteração de nome nas abas, a atualização poderá falhar.
 
@@ -51,10 +52,10 @@ Os filtros ficam no cabeçalho e afetam todos os indicadores e gráficos da pág
 | **Marca / Clube** | `Marca` ou `Clube` nas abas `Fatos Movimentacao` e `Vigência CNPJ x Serviço` | Um registro é mantido quando o valor selecionado corresponde à marca ou ao clube. |
 | **Serviços** | `Serviço` nas abas `Fatos Movimentacao` e `Vigência CNPJ x Serviço` | Aceita um ou mais serviços. |
 | **Ano** | Anos encontrados em `Data`, `Ano-Mês`, `Início` e `Fim` | Define o ano de referência. A opção padrão é todos os anos. |
-| **Período** | Datas de cada registro | Refinamento posterior ao ano: Ano, últimos 6 meses, mês, 1º/2º semestre ou 1º/2º/3º/4º trimestre. |
+| **Período** | Datas de cada registro | Refinamento posterior ao ano: Ano, últimos 6 meses, mês atual, mês anterior, 1º/2º semestre ou 1º/2º/3º/4º trimestre. |
 
 O padrão inicial é **Últimos 6 meses**. Quando um ano é selecionado, a data de referência passa a ser a última data disponível naquele ano e o filtro de período é calculado dentro desse ano.
-Quando o período é refinado para **Ano**, **Mês**, **1º/2º Semestre** ou **1º/2º/3º/4º Trimestre** dentro de um ano selecionado, o dashboard mantém o mês-calendário da referência global para o preset **Mês atual** e troca apenas o ano dos dados. Os semestres usam janeiro–junho e julho–dezembro; os trimestres usam janeiro–março, abril–junho, julho–setembro e outubro–dezembro. Por exemplo, se a referência global está em setembro, selecionar 2025 + Mês atual mostra setembro/2025; o comparativo usa setembro/2024.
+Quando o período é refinado para **Ano**, **Mês atual**, **Mês anterior**, **1º/2º Semestre** ou **1º/2º/3º/4º Trimestre** dentro de um ano selecionado, o dashboard mantém o mês-calendário da referência global para o preset **Mês atual** e calcula o mês imediatamente anterior para **Mês anterior**, trocando somente o ano dos dados. Os semestres usam janeiro–junho e julho–dezembro; os trimestres usam janeiro–março, abril–junho, julho–setembro e outubro–dezembro. Por exemplo, se a referência global está em setembro, selecionar 2025 + Mês atual mostra setembro/2025 e selecionar 2025 + Mês anterior mostra agosto/2025; o comparativo usa o mesmo recorte no ano anterior.
 Os meses sem registros continuam presentes na **Linha do Tempo** com zero contratações e zero cancelamentos. Isso preserva a sequência cronológica completa do intervalo filtrado.
 
 ## 5. Indicadores de destaque
@@ -80,6 +81,17 @@ O cálculo não soma CNPJs. Um cliente com vários CNPJs ou serviços é contado
 | Campos | `CNPJ`, `Cliente`, `Início`, `Fim`, `Situação` |
 | Granularidade | CNPJ único. |
 | Regra | Conta os CNPJs distintos nos registros de vigência que se sobrepõem ao período filtrado. |
+
+#### 5.2.1 Listas detalhadas dos KPIs
+
+Os cards **Clientes ativos** e **CNPJs em operação** possuem a ação **Ver lista**. A ação abre um painel sobreposto sem alterar os filtros globais nem recalcular um recorte diferente. O painel informa o período selecionado, o total visível e permite fechar pelo botão, pelo clique fora ou pela tecla `Esc`.
+
+| Lista | Fonte | Busca | Granularidade e conteúdo |
+|---|---|---|---|
+| Clientes ativos | Registros filtrados da aba `Vigência CNPJ x Serviço` | Nome do cliente, usando o campo `Cliente` | Uma linha visual por cliente único, com quantidade de serviços, quantidade de CNPJs, cidade/região e marca principal disponível. |
+| CNPJs em operação | Registros filtrados da aba `Vigência CNPJ x Serviço` | CNPJ, usando o campo `CNPJ` | Uma linha por CNPJ distinto, com cliente, serviços associados, início mais antigo, fim mais recente e localidade. |
+
+As duas listas herdam os filtros de **Segmento**, **Marca / clube**, **Serviços**, **Ano** e **Período**. Também respeitam a permissão de serviços do usuário autenticado: o painel é construído sobre o mesmo `activeRows` usado pelos KPIs, portanto não expõe registros fora do escopo autorizado. A lista de CNPJs consolida linhas repetidas do mesmo CNPJ e agrega seus serviços sem duplicação.
 
 ### 5.3 LTV médio, ou tempo médio de retenção
 
@@ -127,7 +139,7 @@ A lista mantém uma única entrada por cliente e conserva a contratação mais r
 | Campos | `Cliente`, `Data`, `Evento Cliente`, `Tipo Movimentação`, `Serviço`, `Clube`, `Região` |
 | Granularidade | Cliente único. |
 | Regra de inclusão | Inclui `Evento Cliente = CLIENTE PERDIDO` ou valores de `Tipo Movimentação` que contenham `CANCELAMENTO`. |
-| Exceção | Registros do serviço `Operação Assistida` não são tratados como cancelamento, pois o serviço possui início e fim próprios. |
+| Exceção | Registros dos serviços `Operação Assistida` e `Spot F360` não são tratados como cancelamento quando representam finalização do ciclo; `Spot F360` usa o pipe `302416833`. |
 | Data exibida | `Data` da movimentação. |
 | Ordenação | Mais recente para mais antigo. |
 | Filtros | Segmento, marca/clube, serviço, ano e período. |
@@ -140,7 +152,7 @@ A lista mantém uma única entrada por cliente e conserva a contratação mais r
 | Campos | `Data`, `Evento Cliente`, `Tipo Movimentação`, `Serviço` |
 | Granularidade | Serviço movimentado por mês. |
 | Contratados | Soma registros com `NOVO CLIENTE`, `AQUISICAO` ou `EXPANSAO`. |
-| Cancelados | Soma registros com `CLIENTE PERDIDO` ou `CANCELAMENTO`, exceto `Operação Assistida`. |
+| Cancelados | Soma registros com `CLIENTE PERDIDO` ou `CANCELAMENTO`, exceto finalizações de `Operação Assistida` e `Spot F360`. |
 | Eixo temporal | Todos os meses entre o início e o fim do período filtrado, inclusive meses sem movimentação. |
 | Interação | Ao passar o mouse, exibe mês, serviços contratados e serviços cancelados. |
 | Visual | Duas curvas suavizadas: verde para contratados e coral/vermelha para cancelados. |
@@ -155,7 +167,7 @@ A linha do tempo mede **serviços movimentados**, e não clientes únicos. Por i
 | Campos | `Cliente`, `Serviço`, `Início`, `Fim`, além dos campos utilizados pelos filtros |
 | Granularidade | Par único `Cliente + Serviço`. |
 | Regra | Deduplica CNPJs e linhas repetidas para contar cada serviço uma única vez por cliente. |
-| Exibição | Barras coloridas com total, volume por serviço e percentual em relação ao total. |
+| Exibição | Todas as barras coloridas com total, volume por serviço e percentual em relação ao total; quando a lista excede a altura do painel, a rolagem fica dentro do próprio indicador. |
 | Filtros | Segmento, marca/clube, serviço, ano e período. |
 
 O indicador não mede quantidade de CNPJs. Um cliente com vários CNPJs continua representando uma ocorrência daquele serviço.
@@ -216,27 +228,27 @@ A aba `posicao geografica` possui `Região geográfica`, `Cidade` e `UF`, mas n�
 
 ## 7. Página Por Cliente
 
-A página **Por Cliente** possui um seletor próprio de cliente e apresenta o histórico completo desse cliente, sem aplicar os filtros globais da página **Indicadores Gerais**. Ao selecionar um cliente, a aplicação monta uma visão individual a partir da aba `Vigência CNPJ x Serviço` e complementa os eventos com a aba `Fatos Movimentacao`.
+A página **Por Cliente** possui um seletor próprio de cliente e apresenta o histórico completo desse cliente, sem aplicar os filtros globais da página **Indicadores Gerais**. Ao selecionar um cliente, a aplicação combina a aba `Vigência CNPJ x Serviço` (carteira atual, CNPJs e atributos) com a aba `Histórico de Serviços` (contratações, cancelamentos e ciclos anteriores) e complementa as movimentações com `Fatos Movimentacao`.
 
 ### 7.1 Seletor de cliente
 
 | Item | Descrição |
 |---|---|
-| Fonte | `Vigência CNPJ x Serviço` e `Fatos Movimentacao` |
+| Fonte | `Vigência CNPJ x Serviço`, `Histórico de Serviços` e `Fatos Movimentacao` |
 | Campo | `Cliente` |
 | Regra | Lista nomes únicos, permite busca parcial e seleciona um cliente por vez. |
-| Comportamento | Enquanto o usuário digita, a busca permanece estável no cabeçalho. A lista inclui clientes encontrados nas abas de vigência e fatos. Os indicadores só aparecem quando existe uma correspondência selecionada. |
+| Comportamento | Enquanto o usuário digita, a busca permanece estável no cabeçalho. A lista inclui clientes encontrados nas abas de vigência, histórico e fatos. Os indicadores só aparecem quando existe uma correspondência selecionada. |
 
 ### 7.2 Cards individuais
 
 | Indicador | Aba | Campos | Regra |
 |---|---|---|---|
-| **Serviços ativos** | `Vigência CNPJ x Serviço` | `Cliente`, `Serviço`, `Início`, `Fim` | Conta serviços distintos cujo início já ocorreu e que não possuem `Fim` atingido na data de referência. Uma data fim igual ao dia de corte já deixa o ciclo encerrado. |
-| **CNPJs vinculados** | `Vigência CNPJ x Serviço` | `Cliente`, `CNPJ` | Conta CNPJs distintos do cliente. |
-| **Tempo médio** | `Vigência CNPJ x Serviço` | `Serviço`, `Início`, `Fim` | Calcula a duração média dos serviços históricos em dias. Serviços abertos usam a data de referência mais recente da base. |
-| **Relacionamento** | `Vigência CNPJ x Serviço` | `Início` | Mede o período entre o primeiro início de serviço e a data final de referência, exibido em anos. |
+| **Serviços ativos** | `Vigência CNPJ x Serviço` + `Histórico de Serviços` | `Cliente`, `Serviço`, `Início`, `Fim`, `Nome Cliente`, `Serviço(s) Afetado(s)`, `Data Ativação`, `Data Desativação` | Conta serviços distintos cujo início já ocorreu e que não possuem `Fim` atingido na data de referência. A aba histórica reconstrói ciclos que já não aparecem na vigência atual. |
+| **CNPJs vinculados** | `Vigência CNPJ x Serviço` | `Cliente`, `CNPJ` | Conta CNPJs distintos do cliente na carteira de vigência. |
+| **Tempo médio** | `Vigência CNPJ x Serviço` + `Histórico de Serviços` | `Serviço`, `Início`, `Fim`, `Data Ativação`, `Data Desativação` | Calcula a duração média dos ciclos históricos em dias. Serviços abertos usam a data de referência mais recente da base. |
+| **Relacionamento** | `Vigência CNPJ x Serviço` + `Histórico de Serviços` | `Início`, `Data Ativação` | Mede o período entre o primeiro início de serviço e a data final de referência, exibido em anos. |
 
-O resumo lateral também apresenta serviços encerrados, primeiro serviço, última movimentação e quantidade de serviços no recorte. **Encerrados** conta ciclos distintos com campo `Fim` preenchido até a data de referência, inclusive ciclos de `Operação Assistida`; isso representa conclusão do período, não cancelamento.
+O resumo lateral também apresenta serviços encerrados, primeiro serviço, última movimentação e quantidade de serviços no recorte. **Encerrados** conta ciclos distintos com campo `Fim` preenchido até a data de referência, inclusive ciclos de `Operação Assistida` e `Spot F360` concluídos; isso representa conclusão do período, não cancelamento.
 
 Nos cards, **serviços no histórico** representa nomes de serviços únicos. No Gantt e na tabela, ciclos separados do mesmo serviço continuam visíveis quando possuem datas de início ou fim diferentes.
 
@@ -244,44 +256,33 @@ Nos cards, **serviços no histórico** representa nomes de serviços únicos. No
 
 | Item | Descrição |
 |---|---|
-| Aba | `Vigência CNPJ x Serviço` |
-| Campos | `Cliente`, `Serviço`, `Início`, `Fim`, `Dias`, `CNPJ`, `Marca`, `Cidade`, `Estado`, `Região` |
-| Granularidade | Ciclo de contrato identificado por `Serviço + Início + Fim`. Linhas repetidas de CNPJ no mesmo período são agrupadas, mas recontratações ou períodos separados permanecem como linhas distintas. |
+| Aba(s) | `Vigência CNPJ x Serviço` e `Histórico de Serviços` |
+| Campos | Na vigência: `Cliente`, `Serviço`, `Início`, `Fim`, `Dias`, `CNPJ`, `Marca`, `Cidade`, `Estado`, `Região`; no histórico: `Nome Cliente`, `Serviço(s) Afetado(s)`, `Tipo de Operação`, `Data/Hora`, `Data Ativação`, `Data Desativação` |
+| Granularidade | Ciclo de contrato identificado por `Serviço + Início + Fim`. Linhas repetidas de CNPJ no mesmo período são agrupadas, contratos históricos são reconstruídos a partir das operações e recontratações ou períodos separados permanecem como linhas distintas. |
 | Paleta | Cada serviço usa a mesma paleta do gráfico `Distribuição por serviço`; ciclos do mesmo serviço mantêm a mesma cor. |
-| Status | O status aparece abaixo do nome: `Ativo`, `Encerrado` ou `Operação Assistida`. |
+| Status | O status aparece abaixo do nome: `Ativo`, `Encerrado` ou `Operação Assistida`. `Spot F360` passa para `Encerrado` quando a etapa concluída gera `Fim`/`Data Desativação`. |
 | Datas | Exibe início e fim; serviços abertos mostram `Em aberto`. |
 | Duração | Mostra dias para períodos curtos e anos fechados para contratos com pelo menos um ano. |
 | Ordenação | Serviços ativos primeiro; depois serviços encerrados por início mais recente. |
 
 O histórico considera todos os serviços iniciados até a data de referência mais recente da base, sem recorte de período ou filtros globais. Isso garante que a página represente o histórico integral do cliente.
 
-### 7.4 Evolução mensal dos serviços ativos
-
-| Item | Descrição |
-|---|---|
-| Aba | `Vigência CNPJ x Serviço` |
-| Campos | `Cliente`, `Serviço`, `Início`, `Fim` |
-| Granularidade | Mês e serviço distinto. |
-| Regra | Para cada mês desde o primeiro serviço do cliente até a data de referência, conta serviços cujo início já ocorreu e cujo fim ainda não ocorreu no último dia do mês. |
-| Exibição | Linha azul com a quantidade de serviços ativos por mês e rótulos espaçados para evitar sobreposição de meses e anos. |
-| Observação | A série é calculada diretamente da vigência porque `Base Mensal` não possui o campo `Cliente`; o histórico completo é independente do período selecionado na página geral. |
-
-### 7.5 Movimentações do cliente
+### 7.4 Serviço e Responsáveis
 
 | Item | Descrição |
 |---|---|
 | Aba | `Fatos Movimentacao` |
 | Campos | `Cliente`, `Data`, `Serviço`, `Tipo Movimentação`, `Evento Cliente`, `Clube`, `Responsável` |
 | Granularidade | Todos os eventos do cliente até a data de referência mais recente da base. |
-| Exibição | Lista cronológica reversa com data, serviço, tipo de movimento, evento, clube e responsável. |
-| Operação Assistida | Quando o movimento indica cancelamento, o texto é convertido para `Finalização do período` e `Serviço concluído`. Não é apresentado como cancelamento. |
+| Exibição | Lista cronológica reversa com a data, o nome do serviço e o responsável exibido logo abaixo do serviço. |
+| Finalização de ciclo | Quando o movimento indica cancelamento, `Concluído`, `Fim previsto` ou `Cliente perdido` para `Operação Assistida`/`Spot F360`, o texto é convertido para `Finalização do período` e `Serviço concluído`. Não é apresentado como cancelamento. |
 
-### 7.6 Detalhamento dos serviços
+### 7.5 Detalhamento dos serviços
 
 | Coluna | Fonte ou regra |
 |---|---|
 | Serviço | `Vigência CNPJ x Serviço`.`Serviço` |
-| Status | Calculado com `Início`, `Fim` e regra especial de `Operação Assistida`; sem `Fim` ou com término futuro é `Ativo`, com término atingido é `Encerrado`. |
+| Status | Calculado com `Início`, `Fim` e regra de ciclos com prazo: sem `Fim` ou com término futuro é `Ativo`; com término atingido é `Encerrado`. Para `Spot F360`, a operação `Concluído` no pipe `302416833` também fecha o ciclo. |
 | Início | `Início` |
 | Fim | `Fim`; quando vazio, `Em aberto`. |
 | Dias | `Dias` quando disponível; caso contrário, duração calculada entre início e fim ou data de referência. |
@@ -291,15 +292,44 @@ O histórico considera todos os serviços iniciados até a data de referência m
 
 A tabela possui rolagem horizontal e vertical conforme o tamanho da carteira do cliente.
 
+
+## 7.1 Página Por Colaborador
+
+Rota `/colaboradores`, item **Por Colaborador** no menu. A página **Por Cliente** tem o botão **Ver por colaborador** e chips com os colaboradores do cliente, que levam para esta tela. Na tela, à esquerda: o quadro **Colaboradores e Prestadores de Serviço** (grade com foto/iniciais e busca por nome, cargo ou departamento) e, abaixo dele, o mapa do Brasil com a carteira do colaborador por UF (clique filtra a lista); à direita, o painel com todos os clientes do colaborador (abas Operacional/Gerencial/Suprimentos/Outros, busca, filtro de UF e "somente clientes ativos"). Clicar em um cliente abre a página Por Cliente. Cada colaborador mostra, no cartão, o número de **clientes** (verde) e de **CNPJs** (laranja). Os CNPJs vêm da aba `Vigência CNPJ x Serviço`: contam-se os CNPJs com vigência **ativa** nos serviços pelos quais o colaborador responde em cada cliente dele (por exemplo, quem responde por BPO Gerencial conta só os CNPJs com BPO Gerencial ativo), sem repetir CNPJ.
+
+**Dados.** Os dados do cliente (UF, cidade, marca, serviços ativos) vêm da aba `Vigência CNPJ x Serviço`. Quem atende cada cliente vem do servidor, pelo endpoint protegido `colaboradores.carteira`, e é ligado ao cliente pelo **nome do cliente**. O servidor aplica as regras de acesso: usuário com serviços restritos só recebe os vínculos desses serviços, e o telefone só vai para administradores.
+
+**Contrato da API privada** (`COLABORADORES_API_URL` + `COLABORADORES_API_KEY` no `.env` do servidor, Web App do Apps Script que responde `GET ?key=`):
+
+```json
+{
+  "atualizadoEm": "2026-11-02T08:00:00Z",
+  "colaboradores": [{ "email": "ana.silva@vena.app.br", "nome": "Ana Silva", "cargo": "", "departamento": "", "telefone": "", "fotoUrl": "" }],
+  "vinculos": [{ "email": "ana.silva@vena.app.br", "cliente": "Título do cliente", "funcao": "BPO Gerencial" }]
+}
+```
+
+`funcao` é o nome do campo de responsável no Database Clientes (Receita, Despesa, Agend. Bancário, Conciliação Bancaria, BPO Gerencial, Suprimentos Pedidos, Suprimentos Outros; campos novos usam o nome do serviço). O e-mail (nome.sobrenome@vena.app.br) liga o vínculo ao cadastro do Database Colaboradores. Sem a variável, o site mostra **dados de exemplo** (colaboradores fictícios `@exemplo.invalid`, carteira distribuída automaticamente) com um aviso na tela.
+
+**Lista de clientes (Por Cliente).** O seletor mostra, por padrão, só clientes com serviço ativo (mesmo critério do KPI Clientes ativos dos Indicadores Gerais, sem filtros); **Mostrar encerrados** inclui os demais, marcados como "encerrado".
+
+**Filtro por cliente.** Na página Por Cliente, o botão **Ver por colaborador** só aparece com um cliente selecionado; ao clicar (ou clicar no nome de um colaborador do cliente), abre a página Por Colaborador já com o filtro **Cliente** aplicado: só aparecem os colaboradores que atendem aquele cliente, e os contadores, o mapa e a carteira mostram apenas esse cliente. Uma faixa azul informa o filtro aplicado e tem o botão **Limpar**, que volta a mostrar todos os colaboradores e carteiras. O filtro **Cliente** (com busca) também pode ser usado diretamente na página, em seleção múltipla.
+
+**Fotos dos colaboradores.** A foto exibida segue esta prioridade: (1) foto enviada por um administrador; (2) foto da conta Google do colaborador, guardada automaticamente no login (`users.avatarUrl`; vale também a foto do Cadastro); (3) foto vinda do Pipefy/Apps Script (`fotoUrl`); (4) sem foto, o círculo mostra as iniciais (nome + sobrenome). Para enviar: perfil **administrador**, Por Colaborador, clicar no colaborador e **clicar na foto** do painel à direita; escolher JPG, PNG ou WebP, arrastar para enquadrar, ajustar o zoom e **Salvar foto** (o recorte é quadrado, 256 x 256, exibido em círculo). **Remover foto** apaga somente a foto enviada; o colaborador volta à foto do Google ou às iniciais. As fotos enviadas ficam na tabela `collaborator_photos` (criada pela migração `0005_colaborador_fotos`) e são entregues por `/api/colaboradores/foto`, que exige login. Quem não é administrador vê as fotos, mas não o botão de enviar.
+
+**Google Chat.** O botão copia uma mensagem pronta e abre o Chat. Para abrir a conversa direta, preencher `CHAT_DM_URL_TEMPLATE` em `client/src/lib/colaboradores.ts` (use `{email}`) depois de validar o link no domínio.
+
 ## 8. Regras de negócio importantes
 
 ### 8.1 Cliente não é CNPJ
 
 Os indicadores de cliente utilizam o campo `Cliente` deduplicado. Os indicadores de CNPJ utilizam o campo `CNPJ` deduplicado. Essas duas grandezas não devem ser somadas ou tratadas como equivalentes.
 
-### 8.2 Operação Assistida
+### 8.2 Operação Assistida e Spot F360
 
 O encerramento de `Operação Assistida` não representa cancelamento. Esse serviço possui duração própria e, por isso, é excluído da lista de cancelados e da série de cancelamentos da linha do tempo. Na visão individual, um ciclo com `Fim` preenchido é contado em **Encerrados**, enquanto um novo ciclo sem `Fim` permanece no histórico como `Operação Assistida` aberto.
+
+`Spot F360` segue a mesma regra quando o registro pertence ao pipe `302416833` e alcança a etapa `Concluído`: a operação fecha o ciclo, preenche ou reconstrói a data de fim e entra em **Encerrados**. Ela não entra em **Clientes cancelados** nem na série vermelha de cancelamentos. O cálculo reconhece `Concluído`, `Fim previsto`, `Data Desativação`/`Fim` e os campos opcionais de identificação do pipe quando forem disponibilizados pela sincronização.
 
 ### 8.3 Contratação, aquisição e expansão
 
@@ -415,6 +445,14 @@ Para administradores autenticados, o menu lateral esquerdo exibe o botão **Cada
 | 2.6 | 11/09/2026 | Legibilidade dos gráficos: tooltip da `Linha do tempo` ampliado para exibir mês, contratados e cancelados com mais destaque; eixos, legendas, totais, percentuais, mapa e gráficos da visão por cliente receberam escala tipográfica revisada para desktop e mobile. |
 | 3.0 | 15/09/2026 | Painel administrativo convertido em página `Cadastro`, com edição de nome e serviços, busca, filtro por perfil, ordenação, cópia de e-mail, rolagem interna e redimensionamento manual das colunas. |
 | 3.1 | 15/09/2026 | Correção da regra da visão `Por Cliente`: serviços cuja data `Fim` foi atingida, inclusive no dia de referência, aparecem como `Encerrado`; `Operação Assistida` mantém seu status próprio e não vira cancelamento. |
+| 3.2 | 17/09/2026 | Cards `Clientes ativos` e `CNPJs em operação` passaram a oferecer listas detalhadas acionáveis, com busca contextual, contagem deduplicada, respeito aos filtros globais e às permissões de serviços. |
+| 3.3 | 18/09/2026 | Adicionada a opção `Mês anterior` logo após `Mês atual`; o recorte usa o mês-calendário imediatamente anterior ao mês de referência, respeitando ano, filtros globais, estoques, fluxos e comparativo anual. |
+| 3.6 | 21/09/2026 | O gráfico `HISTÓRICO MENSAL · Evolução dos serviços ativos` passou de uma linha agregada para uma linha independente por serviço, com legenda, cores e pontos mensais próprios. |
+| 3.7 | 21/09/2026 | Redesign visual do histórico mensal: serviços agora aparecem em faixas paralelas, com linhas suavizadas entre os estados ativo/inativo, rótulos laterais e guias independentes para evitar sobreposição de séries binárias. |
+| 3.4 | 18/09/2026 | O painel `Movimentações do cliente` foi renomeado para `Serviço e Responsáveis` e simplificado para exibir somente data, serviço e responsável, removendo movimento, evento e clube da apresentação. |
+| 3.5 | 18/09/2026 | Criado o perfil Super Administrador (com exclusividade no botão Fonte Sheets), restrição de novos cadastros ao domínio @vena.app.br mantendo contas pré-existentes, formulário de cadastro vertical sem campo de foto, seletor de serviços padrão dashboard e filtro de perfis unificado. |
+| 3.8 | 08/10/2026 | Removido o gráfico `HISTÓRICO MENSAL · Evolução dos serviços ativos` da página Por Cliente por duplicar informações já apresentadas no painel `Histórico dos serviços`; o cálculo, teste e estilos exclusivos da série mensal também foram removidos. |
+| 3.9 | 09/10/2026 | `Spot F360` passou a seguir a regra de ciclo concluído do pipe `302416833`: etapa `Concluído`/data de fim gera status `Encerrado`, sem contabilizar cancelamento; a reconstrução histórica e os testes foram atualizados. |
 
 ## Referências
 
