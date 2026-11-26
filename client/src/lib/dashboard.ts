@@ -19,12 +19,15 @@ export interface FilterOptions {
   latestDate: string;
 }
 
+export type MovementKind = "new" | "expansion" | "cancelTotal" | "cancelPartial";
+
 export interface ClientMovement {
   client: string;
   date: string;
   detail: string;
   service: string;
   club: string;
+  kind: MovementKind;
 }
 
 export interface ActiveCnpjRow {
@@ -42,6 +45,10 @@ export interface ActiveCnpjRow {
 export interface TimelinePoint {
   key: string;
   label: string;
+  newServices: number;
+  expansionServices: number;
+  totalCancelServices: number;
+  partialCancelServices: number;
   contractedServices: number;
   cancelledServices: number;
 }
@@ -404,53 +411,77 @@ function isFixedTermCompletion(row: SheetRow): boolean {
     || isFixedTermCompletionStage(row);
 }
 
+function movementKind(row: SheetRow, type: "in" | "out"): MovementKind | null {
+  const event = normalize(row["Evento Cliente"]);
+  const movement = normalize(row["Tipo Movimentação"]);
+  if (type === "in") {
+    if (event === "NOVO CLIENTE") return "new";
+    if (movement === "EXPANSAO") return "expansion";
+    return null;
+  }
+  if (isFixedTermService(row)) return null;
+  if (event === "CLIENTE PERDIDO") return "cancelTotal";
+  if (movement.includes("CANCELAMENTO")) return "cancelPartial";
+  return null;
+}
+
+const KIND_PRIORITY: Record<MovementKind, number> = { new: 0, expansion: 1, cancelTotal: 0, cancelPartial: 1 };
+
 function movementList(rows: SheetRow[], type: "new" | "cancelled"): ClientMovement[] {
-  const selected = rows.filter((row) => {
-    const event = normalize(row["Evento Cliente"]);
-    const movement = normalize(row["Tipo Movimentação"]);
-    return type === "new"
-      ? event === "NOVO CLIENTE" || movement === "AQUISICAO" || movement === "EXPANSAO"
-      : !isFixedTermService(row) && (event === "CLIENTE PERDIDO" || movement.includes("CANCELAMENTO"));
-  });
+  const direction = type === "new" ? "in" : "out";
   const byClient = new Map<string, ClientMovement>();
-  selected.forEach((row) => {
+  rows.forEach((row) => {
+    const kind = movementKind(row, direction);
     const client = asText(row["Cliente"]);
     const date = toDateInput(row["Data"]);
-    if (!client || !date) return;
-    const current = byClient.get(normalize(client));
-    if (!current || date > current.date) {
-      byClient.set(normalize(client), {
-        client,
-        date,
-        detail: formatDetail(row),
-        service: asText(row["Serviço"]),
-        club: asText(row["Clube"]),
-      });
-    }
+    if (!kind || !client || !date) return;
+    const key = normalize(client);
+    const current = byClient.get(key);
+    const better = !current
+      || KIND_PRIORITY[kind] < KIND_PRIORITY[current.kind]
+      || (KIND_PRIORITY[kind] === KIND_PRIORITY[current.kind] && date > current.date);
+    if (better) byClient.set(key, { client, date, detail: formatDetail(row), service: asText(row["Serviço"]), club: asText(row["Clube"]), kind });
   });
   return Array.from(byClient.values()).sort((a, b) => b.date.localeCompare(a.date) || a.client.localeCompare(b.client, "pt-BR"));
 }
 
-function newClientList(fatos: SheetRow[], vigencia: SheetRow[], start: Date, end: Date): ClientMovement[] {
+function firstStartByClient(rows: SheetRow[]): Map<string, Date> {
+  const first = new Map<string, Date>();
+  rows.forEach((row) => {
+    const key = clientKey(row);
+    const start = toDate(row["Início"]);
+    if (!key || !start) return;
+    const current = first.get(key);
+    if (!current || start < current) first.set(key, start);
+  });
+  return first;
+}
+
+function newClientList(fatos: SheetRow[], vigencia: SheetRow[], start: Date, end: Date, allVigencia: SheetRow[]): ClientMovement[] {
   const byClient = new Map<string, ClientMovement>();
   movementList(fatos, "new").forEach((item) => byClient.set(normalize(item.client), item));
 
   // A vigência pode ser criada antes do fato de movimentação pelo App Script.
-  // Nesse intervalo, o início do contrato é a fonte mais atual da contratação.
+  // Fallback só para cliente cujo PRIMEIRO serviço começou no período
+  // (contrato de cliente já existente é expansão, não cliente novo).
+  const firstStart = firstStartByClient(allVigencia);
   vigencia
-    .filter((row) => dateInside(row["Início"], start, end))
+    .filter((row) => {
+      const first = firstStart.get(clientKey(row));
+      return dateInside(row["Início"], start, end) && Boolean(first && dateInside(first, start, end));
+    })
     .forEach((row) => {
       const client = asText(row["Cliente"]);
       const date = toDateInput(row["Início"]);
       if (!client || !date) return;
-      const current = byClient.get(normalize(client));
-      if (!current || date > current.date) {
+      if (!byClient.has(normalize(client))) {
         byClient.set(normalize(client), {
           client,
           date,
           detail: formatDetail(row),
           service: asText(row["Serviço"]),
           club: asText(row["Clube"]),
+          kind: "new",
         });
       }
     });
@@ -459,27 +490,34 @@ function newClientList(fatos: SheetRow[], vigencia: SheetRow[], start: Date, end
 }
 
 function timeline(rows: SheetRow[], start: Date, end: Date): TimelinePoint[] {
-  const months = new Map<string, { contractedServices: number; cancelledServices: number }>();
+  type Bucket = { newServices: number; expansionServices: number; totalCancelServices: number; partialCancelServices: number };
+  const empty = (): Bucket => ({ newServices: 0, expansionServices: 0, totalCancelServices: 0, partialCancelServices: 0 });
+  const months = new Map<string, Bucket>();
   const firstMonth = startOfMonth(start);
   const lastMonth = startOfMonth(end);
   for (let cursor = new Date(firstMonth); cursor <= lastMonth; cursor = new Date(Date.UTC(cursor.getUTCFullYear(), cursor.getUTCMonth() + 1, 1))) {
-    months.set(monthKey(cursor), { contractedServices: 0, cancelledServices: 0 });
+    months.set(monthKey(cursor), empty());
   }
   rows.forEach((row) => {
     const key = monthKey(row["Data"]);
     if (!key) return;
     const event = normalize(row["Evento Cliente"]);
     const movement = normalize(row["Tipo Movimentação"]);
-    const current = months.get(key) ?? { contractedServices: 0, cancelledServices: 0 };
-    if (event === "NOVO CLIENTE" || movement === "AQUISICAO" || movement === "EXPANSAO") current.contractedServices += 1;
-    if (!isFixedTermService(row) && (event === "CLIENTE PERDIDO" || movement.includes("CANCELAMENTO"))) current.cancelledServices += 1;
+    const current = months.get(key) ?? empty();
+    if (movement === "EXPANSAO") current.expansionServices += 1;
+    else if (event === "NOVO CLIENTE" || movement === "AQUISICAO") current.newServices += 1;
+    if (!isFixedTermService(row) && (event === "CLIENTE PERDIDO" || movement.includes("CANCELAMENTO"))) {
+      if (movement.includes("PARCIAL")) current.partialCancelServices += 1;
+      else current.totalCancelServices += 1;
+    }
     months.set(key, current);
   });
-  return Array.from(months.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => ({
+  return Array.from(months.entries()).sort(([a], [b]) => a.localeCompare(b)).map(([key, v]) => ({
     key,
     label: monthLabel(key),
-    contractedServices: value.contractedServices,
-    cancelledServices: value.cancelledServices,
+    ...v,
+    contractedServices: v.newServices + v.expansionServices,
+    cancelledServices: v.totalCancelServices + v.partialCancelServices,
   }));
 }
 
@@ -876,7 +914,7 @@ export function deriveSnapshot(data: DashboardSheets, filters: FilterState): Das
   const previousSnapshotEnd = previousRange.end;
   const previousActiveRows = previousVigencia.filter((row) => activeAtEnd(row, previousSnapshotEnd));
   const previousClients = new Set(previousActiveRows.map(clientKey).filter(Boolean));
-  const newClients = newClientList(fatos, vigencia, range.start, range.end);
+  const newClients = newClientList(fatos, vigencia, range.start, range.end, data.vigencia);
   const cancelledClients = movementList(fatos, "cancelled");
   const byClient = activeClientMap(effectiveActiveRows);
   const boticarioClientKeys = new Set<string>();

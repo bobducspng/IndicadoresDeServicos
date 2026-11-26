@@ -382,3 +382,28 @@ tbody tr:hover { background: color-mix(in srgb, var(--surface-2) 70%, transparen
 }
 .skip-link { position: fixed; top: 10px; left: 10px; z-index: 100; padding: 10px 13px; border-radius: 9px; color: #fff; background: var(--blue); box-shadow: 0 10px 24px rgba(0, 0, 0, .28); transform: translateY(-160%); transition: transform 160ms var(--ease-out); }
 .skip-link:focus { transform: translateY(0); }
+
+/* --- Entradas / Saídas com etiquetas e linha do tempo com 4 séries (patch v2) --- */
+.movement-filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 10px; }
+.movement-chip { font-size: 11px; padding: 3px 9px; border-radius: 999px; border: 1px solid rgba(127, 147, 181, .35); background: transparent; color: inherit; cursor: pointer; }
+.movement-chip-on { background: rgba(93, 160, 255, .16); }
+.movement-right { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.movement-tag { font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; border: 1px solid; white-space: nowrap; }
+.movement-tag-new { color: #19c6a3; border-color: rgba(25, 198, 163, .4); background: rgba(25, 198, 163, .1); }
+.movement-tag-expansion { color: #5da0ff; border-color: rgba(93, 160, 255, .4); background: rgba(93, 160, 255, .1); }
+.movement-tag-cancelTotal { color: #fb5b72; border-color: rgba(251, 91, 114, .4); background: rgba(251, 91, 114, .1); }
+.movement-tag-cancelPartial { color: #f6bf4b; border-color: rgba(246, 191, 75, .4); background: rgba(246, 191, 75, .1); }
+.legend-toggle { background: none; border: 0; color: inherit; font: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; padding: 0; }
+.legend-toggle-off { opacity: .4; text-decoration: line-through; }
+.timeline-point { fill: var(--panel-bg, #0b1220); stroke-width: 2; }
+
+/* --- chips coloridos: etiqueta e contador no mesmo balao (patch v3) --- */
+.movement-chip { font-weight: 600; }
+.movement-chip-new { color: #19c6a3; border-color: rgba(25, 198, 163, .45); background: rgba(25, 198, 163, .08); }
+.movement-chip-expansion { color: #5da0ff; border-color: rgba(93, 160, 255, .45); background: rgba(93, 160, 255, .08); }
+.movement-chip-cancelTotal { color: #fb5b72; border-color: rgba(251, 91, 114, .45); background: rgba(251, 91, 114, .08); }
+.movement-chip-cancelPartial { color: #f6bf4b; border-color: rgba(246, 191, 75, .45); background: rgba(246, 191, 75, .08); }
+.movement-chip-new.movement-chip-on { background: rgba(25, 198, 163, .26); }
+.movement-chip-expansion.movement-chip-on { background: rgba(93, 160, 255, .26); }
+.movement-chip-cancelTotal.movement-chip-on { background: rgba(251, 91, 114, .26); }
+.movement-chip-cancelPartial.movement-chip-on { background: rgba(246, 191, 75, .26); }

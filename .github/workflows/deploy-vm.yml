@@ -1,9 +1,8 @@
 name: Deploy na VM Oracle
 
+# DESATIVADO PARA PUSH: a publicação passou para o Cloud Run (deploy-cloud-run.yml).
+# Este fluxo da VM Oracle só roda manualmente.
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 concurrency:

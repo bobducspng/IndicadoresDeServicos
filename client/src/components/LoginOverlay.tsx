@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { AlertCircle, Check, Copy, Mail, MessageCircle, ShieldCheck } from "lucide-react";
-import { startLogin } from "@/const";
+import { IS_GAS, startLogin } from "@/const";
+import OFFICIAL_MARK from "@/assets/menu-collapsed.png";
 
-const OFFICIAL_MARK = "/assets/menu-collapsed.png";
 
 function getAuthErrorMessage(code: string | null): string | null {
   if (code === "unauthorized") {
@@ -20,8 +20,13 @@ function getAuthErrorMessage(code: string | null): string | null {
   return null;
 }
 
-export function LoginOverlay() {
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+const GAS_DENIED_MESSAGE = (email: string | null | undefined) =>
+  email
+    ? `A conta ${email} não está cadastrada ou está desativada. Escolha um dos canais abaixo para solicitar a liberação.`
+    : "Não foi possível identificar sua conta Google. Entre com seu e-mail @vena.app.br e tente novamente, ou solicite a liberação pelos canais abaixo.";
+
+export function LoginOverlay({ email = null }: { email?: string | null }) {
+  const [errorMessage, setErrorMessage] = useState<string | null>(IS_GAS ? GAS_DENIED_MESSAGE(email) : null);
   const [copiedContact, setCopiedContact] = useState<"email" | "whatsapp" | null>(null);
 
   const handleCopyContact = async (value: string, contact: "email" | "whatsapp") => {
@@ -37,6 +42,7 @@ export function LoginOverlay() {
   };
 
   useEffect(() => {
+    if (IS_GAS) return;
     const params = new URLSearchParams(window.location.search);
     const message = getAuthErrorMessage(params.get("authError"));
     if (message) {
@@ -66,6 +72,7 @@ export function LoginOverlay() {
             </p>
           </div>
 
+          {!IS_GAS && (<>
           <div className="login-action-box">
             <button
               type="button"
@@ -82,9 +89,12 @@ export function LoginOverlay() {
             </button>
           </div>
 
-          <p className="login-helper-text">
-            Você será direcionado diretamente à autenticação segura do Google.
-          </p>
+          {!IS_GAS && (
+            <p className="login-helper-text">
+              Você será direcionado diretamente à autenticação segura do Google.
+            </p>
+          )}
+          </>)}
 
           {errorMessage && (
             <div className="login-error-alert" role="alert">
@@ -155,7 +165,7 @@ export function LoginOverlay() {
 
         <div className="login-security-badge">
           <ShieldCheck size={14} className="security-shield-icon" />
-          <span>ACESSO SEGURO · GOOGLE OAUTH</span>
+          <span>{IS_GAS ? "ACESSO RESTRITO · CONTAS VENA" : "ACESSO SEGURO · GOOGLE OAUTH"}</span>
         </div>
       </div>
     </div>

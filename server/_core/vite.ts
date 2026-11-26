@@ -3,10 +3,17 @@ import fs from "fs";
 import { type Server } from "http";
 import { nanoid } from "nanoid";
 import path from "path";
-import { createServer as createViteServer } from "vite";
-import viteConfig from "../../vite.config";
+import { pathToFileURL } from "url";
 
 export async function setupVite(app: Express, server: Server) {
+  // Vite e a configuração dele só existem em desenvolvimento (devDependencies). Os
+  // imports são dinâmicos e por variável para o esbuild NÃO colocá-los no bundle de
+  // produção: assim a imagem de produção funciona instalando só as dependências "prod".
+  const viteModule = "vite";
+  const { createServer: createViteServer } = await import(/* @vite-ignore */ viteModule);
+  const viteConfigFile = path.resolve(import.meta.dirname, "../..", "vite.config.ts");
+  const { default: viteConfig } = await import(/* @vite-ignore */ pathToFileURL(viteConfigFile).href);
+
   const serverOptions = {
     middlewareMode: true,
     hmr: { server },

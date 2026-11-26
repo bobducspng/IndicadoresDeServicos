@@ -1,0 +1,91 @@
+name: Deploy no Google Cloud Run
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-cloud-run
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # autenticação sem chave (Workload Identity Federation)
+
+# Variáveis do repositório (Settings > Secrets and variables > Actions > Variables):
+#   GCP_PROJECT_ID, GCP_REGION (ex.: southamerica-east1), GCP_WIF_PROVIDER, GCP_DEPLOY_SA, GCP_RUNTIME_SA,
+#   AR_REPOSITORY (ex.: indicadores), CLOUD_SQL_INSTANCE (projeto:regiao:instancia),
+#   APP_URL (URL pública do serviço, sem barra no final), GOOGLE_CLIENT_ID, COLABORADORES_API_URL
+# Segredos ficam no Secret Manager do Google: database-url, session-secret, google-client-secret,
+# colaboradores-api-key (ver docs-ti/LEIAME_TI.md).
+env:
+  SERVICE: indicadores-servicos
+  MIGRATE_JOB: indicadores-migrate
+  RUNTIME_SA: ${{ vars.GCP_RUNTIME_SA }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      IMAGE_BASE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.AR_REPOSITORY }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.4.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Verificar (tipos e testes)
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm check
+          pnpm test
+
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Autenticar o Docker no Artifact Registry
+        run: gcloud auth configure-docker "${{ vars.GCP_REGION }}-docker.pkg.dev" --quiet
+
+      - name: Construir e enviar as imagens (site e migrações)
+        run: |
+          docker build --target runtime -t "$IMAGE_BASE/app:${GITHUB_SHA}" .
+          docker build --target migrate -t "$IMAGE_BASE/migrate:${GITHUB_SHA}" .
+          docker push "$IMAGE_BASE/app:${GITHUB_SHA}"
+          docker push "$IMAGE_BASE/migrate:${GITHUB_SHA}"
+
+      - name: Aplicar migrações do banco (Cloud Run Job)
+        run: |
+          gcloud run jobs deploy "$MIGRATE_JOB" \
+            --project "${{ vars.GCP_PROJECT_ID }}" --region "${{ vars.GCP_REGION }}" \
+            --image "$IMAGE_BASE/migrate:${GITHUB_SHA}" \
+            --service-account "$RUNTIME_SA" \
+            --set-cloudsql-instances "${{ vars.CLOUD_SQL_INSTANCE }}" \
+            --set-secrets "DATABASE_URL=database-url:latest" \
+            --max-retries 0 --task-timeout 600
+          gcloud run jobs execute "$MIGRATE_JOB" \
+            --project "${{ vars.GCP_PROJECT_ID }}" --region "${{ vars.GCP_REGION }}" --wait
+
+      - name: Publicar o site
+        run: |
+          gcloud run deploy "$SERVICE" \
+            --project "${{ vars.GCP_PROJECT_ID }}" --region "${{ vars.GCP_REGION }}" \
+            --image "$IMAGE_BASE/app:${GITHUB_SHA}" \
+            --service-account "$RUNTIME_SA" \
+            --allow-unauthenticated \
+            --port 8080 --cpu 1 --memory 512Mi --concurrency 80 --timeout 60 \
+            --min-instances 0 --max-instances 3 \
+            --set-cloudsql-instances "${{ vars.CLOUD_SQL_INSTANCE }}" \
+            --set-env-vars "NODE_ENV=production,GOOGLE_CLIENT_ID=${{ vars.GOOGLE_CLIENT_ID }},GOOGLE_REDIRECT_URI=${{ vars.APP_URL }}/api/auth/google/callback,GOOGLE_EXTRA_REDIRECT_URIS=${{ vars.APP_URL }}/api/auth/google/callback,COLABORADORES_API_URL=${{ vars.COLABORADORES_API_URL }}" \
+            --set-secrets "DATABASE_URL=database-url:latest,SESSION_SECRET=session-secret:latest,GOOGLE_CLIENT_SECRET=google-client-secret:latest,COLABORADORES_API_KEY=colaboradores-api-key:latest"
+
+      - name: Verificar o site no ar
+        run: |
+          URL=$(gcloud run services describe "$SERVICE" --project "${{ vars.GCP_PROJECT_ID }}" --region "${{ vars.GCP_REGION }}" --format 'value(status.url)')
+          echo "Serviço: $URL"
+          curl --fail --silent --show-error --max-time 30 "$URL/" > /dev/null

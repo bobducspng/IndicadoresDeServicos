@@ -21,8 +21,20 @@ export const GOOGLE_REDIRECT_URIS = [
   "http://localhost:3000/api/auth/google/callback",
 ] as const;
 
+/**
+ * Endereços de callback extras, definidos por quem opera o servidor (variável de ambiente
+ * GOOGLE_EXTRA_REDIRECT_URIS, separados por vírgula). Serve para publicar em outro endereço
+ * (ex.: Cloud Run) sem alterar o código. Aceita apenas https:// ou localhost.
+ */
+function extraGoogleRedirectUris(): string[] {
+  return (process.env.GOOGLE_EXTRA_REDIRECT_URIS ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter((item) => /^https:\/\/[^\s/]+\/api\/auth\/google\/callback$/.test(item) || /^http:\/\/localhost(:\d+)?\/api\/auth\/google\/callback$/.test(item));
+}
+
 export function isAllowedGoogleRedirectUri(value: string): boolean {
-  return (GOOGLE_REDIRECT_URIS as readonly string[]).includes(value);
+  return (GOOGLE_REDIRECT_URIS as readonly string[]).includes(value) || extraGoogleRedirectUris().includes(value);
 }
 
 export function createPkcePair(): { verifier: string; challenge: string } {

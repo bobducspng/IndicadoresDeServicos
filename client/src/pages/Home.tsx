@@ -30,6 +30,10 @@ import {
 } from "lucide-react";
 import { BrazilMap } from "@/components/BrazilMap";
 import { LoginOverlay } from "@/components/LoginOverlay";
+import EXPANDED_MARK from "@/assets/menu-expanded.png";
+import COLLAPSED_MARK from "@/assets/menu-collapsed.png";
+import { IS_GAS } from "@/const";
+import { setBrowserPath } from "@/lib/nav";
 import { UserManagementModal } from "@/components/UserManagementModal";
 import { trpc } from "@/lib/trpc";
 import { LogOut, Shield, UserRound } from "lucide-react";
@@ -55,6 +59,8 @@ import {
   formatPeriodDate,
   normalize,
   type ActiveCnpjRow,
+  type ClientMovement,
+  type MovementKind,
   type DashboardSnapshot,
   type ClientDetail,
   type DashboardView,
@@ -63,8 +69,6 @@ import {
   type PeriodPreset,
 } from "@/lib/dashboard";
 
-const EXPANDED_MARK = "/assets/menu-expanded.png";
-const COLLAPSED_MARK = "/assets/menu-collapsed.png";
 
 type Tone = "blue" | "teal" | "amber" | "violet" | "boticario";
 
@@ -76,6 +80,13 @@ type SyncLogItem = {
 };
 
 const SERVICE_COLORS = ["#2f7dff", "#19c6a3", "#f6bf4b", "#fb5b72", "#9b7bf8", "#5da0ff", "#62e0c7", "#d5a7ff"];
+
+const KIND_LABEL: Record<MovementKind, string> = {
+  new: "Novo cliente",
+  expansion: "Expansão",
+  cancelTotal: "Cancelamento total",
+  cancelPartial: "Cancelamento parcial",
+};
 
 function initials(value: string): string {
   return value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
@@ -139,7 +150,7 @@ function LogoMark({ collapsed }: { collapsed: boolean }) {
 function Sidebar({ collapsed, setCollapsed, view, setView, mobileOpen, onCloseMobile, user, onLogout }: { collapsed: boolean; setCollapsed: (value: boolean) => void; view: DashboardView; setView: (value: DashboardView) => void; mobileOpen: boolean; onCloseMobile: () => void; user: any; onLogout: () => void }) {
   const goTo = (nextView: DashboardView) => {
     setView(nextView);
-    window.history.replaceState({}, "", nextView === "client" ? "/clientes" : nextView === "collaborator" ? "/colaboradores" : nextView === "access" ? "/cadastro" : "/");
+    setBrowserPath(nextView === "client" ? "/clientes" : nextView === "collaborator" ? "/colaboradores" : nextView === "access" ? "/cadastro" : "/");
     onCloseMobile();
   };
 
@@ -205,15 +216,17 @@ function Sidebar({ collapsed, setCollapsed, view, setView, mobileOpen, onCloseMo
               <Settings2 size={15} />
             </button>
           )}
-          <button
-            type="button"
-            className="sidebar-action-btn sidebar-logout-btn"
-            onClick={onLogout}
-            title="Sair do sistema"
-            aria-label="Sair"
-          >
-            <LogOut size={15} />
-          </button>
+          {!IS_GAS && (
+            <button
+              type="button"
+              className="sidebar-action-btn sidebar-logout-btn"
+              onClick={onLogout}
+              title="Sair do sistema"
+              aria-label="Sair"
+            >
+              <LogOut size={15} />
+            </button>
+          )}
         </div>
       </div>
     </aside>
@@ -354,42 +367,64 @@ function formatMovementDate(value: string): string {
   return year && month && day ? `${day}/${month}/${year}` : value;
 }
 
-function MovementList({ title, items, tone }: { title: string; items: DashboardSnapshot["newClients"]; tone: "positive" | "negative" }) {
+function MovementList({ title, items, tone, kinds }: { title: string; items: ClientMovement[]; tone: "positive" | "negative"; kinds: MovementKind[] }) {
+  const [kind, setKind] = useState<MovementKind | "all">("all");
+  const visible = kind === "all" ? items : items.filter((item) => item.kind === kind);
   return <div className={`movement-list movement-list-${tone}`}>
+    <div className="movement-filters">
+      <button type="button" className={`movement-chip ${kind === "all" ? "movement-chip-on" : ""}`} onClick={() => setKind("all")}>Todos {items.length}</button>
+      {kinds.map((k) => <button type="button" key={k} className={`movement-chip movement-chip-${k} ${kind === k ? "movement-chip-on" : ""}`} onClick={() => setKind(k)}>{KIND_LABEL[k]} {items.filter((item) => item.kind === k).length}</button>)}
+    </div>
     <div className="movement-scroll" tabIndex={0} aria-label={title}>
-      {items.length ? items.map((item, index) => <div className="movement-item" key={`${item.client}-${item.date}`}><span className="movement-index">{index + 1}.</span><div className="movement-copy"><strong title={item.client}>{item.client}</strong><small title={item.detail}>{item.detail}</small></div><time>{formatMovementDate(item.date)}</time></div>) : <div className="movement-empty">Nenhum cliente encontrado no período selecionado.</div>}
+      {visible.length ? visible.map((item, index) => <div className="movement-item" key={`${item.client}-${item.date}`}><span className="movement-index">{index + 1}.</span><div className="movement-copy"><strong title={item.client}>{item.client}</strong><small title={item.detail}>{item.detail}</small></div><div className="movement-right"><span className={`movement-tag movement-tag-${item.kind}`}>{KIND_LABEL[item.kind]}</span><time>{formatMovementDate(item.date)}</time></div></div>) : <div className="movement-empty">Nenhum cliente encontrado no período selecionado.</div>}
     </div>
   </div>;
 }
 
+const TIMELINE_SERIES = [
+  { key: "newServices", label: "Serviços contratados (clientes novos)", color: "#19c6a3", dash: "" },
+  { key: "expansionServices", label: "Expansões de serviço", color: "#5da0ff", dash: "6 4" },
+  { key: "totalCancelServices", label: "Cancelamentos totais", color: "#fb5b72", dash: "" },
+  { key: "partialCancelServices", label: "Cancelamentos parciais", color: "#f6bf4b", dash: "6 4" },
+] as const;
+type TimelineKey = typeof TIMELINE_SERIES[number]["key"];
+
 function TimelineChart({ series }: { series: DashboardSnapshot["timeline"] }) {
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const [hidden, setHidden] = useState<Set<TimelineKey>>(new Set());
   const width = 720;
   const height = 245;
   const padding = { left: 26, right: 15, top: 20, bottom: 32 };
-  const maxValue = Math.max(...series.flatMap((point) => [point.contractedServices, point.cancelledServices]), 1);
-  const points = (key: "contractedServices" | "cancelledServices") => series.map((point, index) => {
-    const x = padding.left + (index / Math.max(series.length - 1, 1)) * (width - padding.left - padding.right);
-    const y = padding.top + (1 - point[key] / maxValue) * (height - padding.top - padding.bottom);
-    return { x, y };
+  const visible = TIMELINE_SERIES.filter((s) => !hidden.has(s.key));
+  const maxValue = Math.max(...series.flatMap((p) => visible.map((s) => p[s.key])), 1);
+  const xAt = (i: number) => padding.left + (i / Math.max(series.length - 1, 1)) * (width - padding.left - padding.right);
+  const yAt = (v: number) => padding.top + (1 - v / maxValue) * (height - padding.top - padding.bottom);
+  const smoothPath = (key: TimelineKey) => series.reduce((path, p, i) => {
+    if (i === 0) return `M ${xAt(0)} ${yAt(p[key])}`;
+    const cx = (xAt(i - 1) + xAt(i)) / 2;
+    return `${path} C ${cx} ${yAt(series[i - 1][key])}, ${cx} ${yAt(p[key])}, ${xAt(i)} ${yAt(p[key])}`;
+  }, "");
+  const toggle = (key: TimelineKey) => setHidden((current) => {
+    const next = new Set(current);
+    if (next.has(key)) next.delete(key); else next.add(key);
+    return next;
   });
-  const smoothPath = (key: "contractedServices" | "cancelledServices") => {
-    const pointsForLine = points(key);
-    if (!pointsForLine.length) return "";
-    return pointsForLine.reduce((path, point, index) => {
-      if (index === 0) return `M ${point.x} ${point.y}`;
-      const previous = pointsForLine[index - 1];
-      const controlX = (previous.x + point.x) / 2;
-      return `${path} C ${controlX} ${previous.y}, ${controlX} ${point.y}, ${point.x} ${point.y}`;
-    }, "");
-  };
   return <div className="timeline-chart-wrap">
-    <div className="timeline-header"><div className="chart-legend"><span><i className="legend-dot legend-teal" /> Serviços contratados</span><span><i className="legend-dot legend-coral" /> Serviços cancelados</span></div></div>
-    <svg className="timeline-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Linha do tempo de serviços contratados e cancelados">
+    <div className="timeline-header"><div className="chart-legend">{TIMELINE_SERIES.map((s) => <button type="button" key={s.key} className={`legend-toggle ${hidden.has(s.key) ? "legend-toggle-off" : ""}`} onClick={() => toggle(s.key)}><i className="legend-dot" style={{ background: s.color }} /> {s.label}</button>)}</div></div>
+    <svg className="timeline-chart" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Linha do tempo de serviços contratados, expansões e cancelamentos">
       {[0, .33, .66, 1].map((level) => <g key={level}><line x1={padding.left} x2={width - padding.right} y1={padding.top + level * (height - padding.top - padding.bottom)} y2={padding.top + level * (height - padding.top - padding.bottom)} className="chart-grid" /><text x="5" y={padding.top + level * (height - padding.top - padding.bottom) + 3} className="chart-axis-label">{Math.round(maxValue * (1 - level))}</text></g>)}
-      <path d={smoothPath("contractedServices")} className="chart-line chart-line-teal" />
-      <path d={smoothPath("cancelledServices")} className="chart-line chart-line-coral" />
-      {series.map((point, index) => { const x = padding.left + (index / Math.max(series.length - 1, 1)) * (width - padding.left - padding.right); const yContracted = padding.top + (1 - point.contractedServices / maxValue) * (height - padding.top - padding.bottom); const yCancelled = padding.top + (1 - point.cancelledServices / maxValue) * (height - padding.top - padding.bottom); const segmentWidth = (width - padding.left - padding.right) / Math.max(series.length, 1); const tooltipX = Math.max(12, Math.min(width - 272, x - 112)); const tooltipTextX = tooltipX + 16; return <g key={point.key} onMouseEnter={() => setHoveredIndex(index)} onMouseLeave={() => setHoveredIndex(null)}><title>{point.label} · Contratados: {point.contractedServices} serviços · Cancelados: {point.cancelledServices} serviços</title><rect x={x - segmentWidth / 2} y={padding.top} width={segmentWidth} height={height - padding.top - padding.bottom} className="timeline-hover-zone" /><circle cx={x} cy={yContracted} r={hoveredIndex === index ? "5.5" : "4"} className="timeline-point timeline-point-teal" /><circle cx={x} cy={yCancelled} r={hoveredIndex === index ? "5.5" : "4"} className="timeline-point timeline-point-coral" /><text x={x} y={height - 8} textAnchor="middle" className="chart-label">{point.label}</text>{hoveredIndex === index && <g className="timeline-tooltip" pointerEvents="none"><rect x={tooltipX} y="3" width="260" height="58" rx="8" /><text x={tooltipTextX} y="22"><tspan className="timeline-tooltip-label">{point.label}</tspan><tspan x={tooltipTextX} dy="22" className="timeline-tooltip-values">Contratados {point.contractedServices} · Cancelados {point.cancelledServices}</tspan></text></g>}</g>; })}
+      {visible.map((s) => <path key={s.key} d={smoothPath(s.key)} className="chart-line" style={{ stroke: s.color, strokeDasharray: s.dash || undefined }} />)}
+      {series.map((p, i) => {
+        const segment = (width - padding.left - padding.right) / Math.max(series.length, 1);
+        const tooltipX = Math.max(12, Math.min(width - 292, xAt(i) - 130));
+        return <g key={p.key} onMouseEnter={() => setHoveredIndex(i)} onMouseLeave={() => setHoveredIndex(null)}>
+          <title>{p.label} · Novos {p.newServices} · Expansões {p.expansionServices} · Cancel. totais {p.totalCancelServices} · Cancel. parciais {p.partialCancelServices}</title>
+          <rect x={xAt(i) - segment / 2} y={padding.top} width={segment} height={height - padding.top - padding.bottom} className="timeline-hover-zone" />
+          {visible.map((s) => <circle key={s.key} cx={xAt(i)} cy={yAt(p[s.key])} r={hoveredIndex === i ? 5.5 : 4} className="timeline-point" style={{ stroke: s.color }} />)}
+          <text x={xAt(i)} y={height - 8} textAnchor="middle" className="chart-label">{p.label}</text>
+          {hoveredIndex === i && <g className="timeline-tooltip" pointerEvents="none"><rect x={tooltipX} y="3" width="280" height="78" rx="8" /><text x={tooltipX + 16} y="22"><tspan className="timeline-tooltip-label">{p.label}</tspan><tspan x={tooltipX + 16} dy="18" className="timeline-tooltip-values">Novos {p.newServices} · Expansões {p.expansionServices}</tspan><tspan x={tooltipX + 16} dy="18" className="timeline-tooltip-values">Cancel. totais {p.totalCancelServices} · parciais {p.partialCancelServices}</tspan></text></g>}
+        </g>;
+      })}
     </svg>
   </div>;
 }
@@ -429,7 +464,7 @@ function GeneralPage({ snapshot }: { snapshot: DashboardSnapshot }) {
   return <>
     <div className="page-heading"><div><div className="page-eyebrow"><span className="status-dot status-dot-live" /> Visão consolidada</div><h1>Indicadores gerais</h1><p>Movimentação, retenção e distribuição da carteira por cliente.</p></div><div className="page-heading-meta"><span>{snapshot.period.label}</span><span className="heading-meta-divider" /><span>{formatPeriodDate(snapshot.period.startDate)} — {formatDate(snapshot.period.endDate)}</span></div></div>
     <div className="kpi-grid"><KpiCard icon={Users} label="Clientes ativos" value={formatNumber(snapshot.kpis.clients)} detail="clientes únicos com vigência no recorte" tone="blue" trend={growth === null ? undefined : `${growth >= 0 ? "+" : ""}${growth.toFixed(1).replace(".", ",")}%`} trendPositive={growth === null ? undefined : growth >= 0} onViewList={() => setListKind("clients")} /><KpiCard icon={Building2} label="CNPJs em operação" value={formatNumber(snapshot.kpis.cnpjs)} detail="cadastros vinculados aos clientes" tone="teal" onViewList={() => setListKind("cnpjs")} /><KpiCard icon={Activity} label="LTV médio (retenção)" value={`${snapshot.kpis.ltvYears.toFixed(1).replace(".", ",")} anos`} detail="tempo médio de serviço ativo" tone="violet" /><KpiCard icon={Store} label="Universo O Boticário" value={`${snapshot.kpis.boticarioShare.toFixed(1).replace(".", ",")}%`} detail={`${formatNumber(snapshot.kpis.boticarioClients)} Boticário · ${formatNumber(snapshot.kpis.otherBrandClients)} outras marcas`} tone="boticario" trend={`${formatNumber(snapshot.kpis.boticarioClients)} clientes`} /></div>
-    <div className="content-grid content-grid-top"><Panel title={`Clientes novos · ${formatNumber(snapshot.newClients.length)} no período`} icon={Users} className="movement-panel"><MovementList title="Clientes novos" items={snapshot.newClients} tone="positive" /></Panel><Panel title={`Clientes cancelados · ${formatNumber(snapshot.cancelledClients.length)} no período`} icon={CircleAlert} className="movement-panel"><MovementList title="Clientes cancelados" items={snapshot.cancelledClients} tone="negative" /></Panel><Panel title="Linha do tempo" icon={Activity} className="timeline-panel"><TimelineChart series={snapshot.timeline} /></Panel></div>
+    <div className="content-grid content-grid-top"><Panel title={`Entradas no período · ${formatNumber(snapshot.newClients.length)} clientes`} icon={Users} className="movement-panel"><MovementList title="Entradas" items={snapshot.newClients} tone="positive" kinds={["new", "expansion"]} /></Panel><Panel title={`Saídas no período · ${formatNumber(snapshot.cancelledClients.length)} clientes`} icon={CircleAlert} className="movement-panel"><MovementList title="Saídas" items={snapshot.cancelledClients} tone="negative" kinds={["cancelTotal", "cancelPartial"]} /></Panel><Panel title="Linha do tempo" icon={Activity} className="timeline-panel"><TimelineChart series={snapshot.timeline} /></Panel></div>
     <div className="content-grid content-grid-three"><Panel title="Distribuição por serviço" eyebrow="SERVIÇOS · CLIENTES ÚNICOS" icon={Layers3}><ServiceBars items={snapshot.serviceBreakdown} total={snapshot.serviceTotal} /></Panel><Panel title="Clientes × serviços" eyebrow="CLIENTES ÚNICOS · PARTICIPAÇÃO" icon={BarChart3}><ClientServiceBars items={snapshot.clientServiceBreakdown} /></Panel><Panel title="Mix por clube" eyebrow="CLIENTES ÚNICOS · PARTICIPAÇÃO" icon={Target}><ClubBreakdown items={snapshot.clubBreakdown} /></Panel></div>
     <div className="content-grid content-grid-map"><Panel title="Mapa dos serviços oferecidos" eyebrow="CLIENTES ATIVOS POR ESTADO" icon={MapIcon} className="panel-map"><BrazilMap snapshot={snapshot} /></Panel><Panel title="Clientes em foco" eyebrow="MAIOR CONCENTRAÇÃO DE SERVIÇOS" icon={Users} className="panel-table"><DataTable rows={snapshot.clientRows} /></Panel></div>
     {listKind && <ActiveListDialog kind={listKind} snapshot={snapshot} onClose={closeList} />}
@@ -518,7 +553,7 @@ function ClientPage({ detail, clients, activeClients, selectedClient, onSelectCl
   </>;
 }
 
-function LoadingState() { return <div className="state-card"><div className="loading-orbit"><span /><span /><span /></div><h2>Conectando à base de indicadores</h2><p>Consultando as abas públicas do Google Sheets e preparando os filtros globais.</p><div className="loading-lines"><span /><span /><span /></div></div>; }
+function LoadingState() { return <div className="state-card"><div className="loading-orbit"><span /><span /><span /></div><h2>Conectando à base de indicadores</h2><p>{IS_GAS ? "Lendo a planilha de indicadores e preparando os filtros globais." : "Consultando as abas públicas do Google Sheets e preparando os filtros globais."}</p><div className="loading-lines"><span /><span /><span /></div></div>; }
 function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) { return <div className="state-card state-card-error"><div className="error-symbol"><CircleAlert size={22} /></div><h2>Não foi possível atualizar os dados</h2><p>{message}</p><button className="primary-button" onClick={onRetry}><RefreshCw size={15} /> Tentar novamente</button><a href={spreadsheetSource} target="_blank" rel="noreferrer">Abrir planilha de origem</a></div>; }
 
 export default function Home() {
@@ -595,12 +630,12 @@ export default function Home() {
     setCollaboratorClientFilter(selectedClient ? [selectedClient] : []);
     setSelectedCollaborator(email ?? "");
     setView("collaborator");
-    window.history.replaceState({}, "", "/colaboradores");
+    setBrowserPath("/colaboradores");
   }, [selectedClient]);
   const abrirClienteDoColaborador = useCallback((cliente: string) => {
     setSelectedClient(cliente);
     setView("client");
-    window.history.replaceState({}, "", "/clientes");
+    setBrowserPath("/clientes");
   }, []);
   const clearFilters = useCallback(() => setFilters(DEFAULT_FILTERS), []);
   useEffect(() => { document.documentElement.dataset.theme = theme; }, [theme]);
@@ -613,7 +648,7 @@ export default function Home() {
     return <div className="auth-loading-screen"><div className="loading-orbit"><span /><span /><span /></div><strong>Verificando seu acesso...</strong></div>;
   }
   if (!isAllowed) {
-    return <LoginOverlay />;
+    return <LoginOverlay email={authQuery.data?.email ?? null} />;
   }
 
   return (

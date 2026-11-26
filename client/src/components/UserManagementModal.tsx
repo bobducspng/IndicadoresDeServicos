@@ -25,6 +25,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
+import { IS_GAS } from "@/const";
 
 interface UserManagementModalProps {
   isOpen: boolean;
@@ -175,6 +176,8 @@ export function UserManagementModal({
   } | null>(null);
 
   const utils = trpc.useUtils();
+  // Mesma consulta da tela principal (cache compartilhado): traz o link do Web App no Apps Script.
+  const meQuery = trpc.auth.me.useQuery(undefined, { retry: false, refetchOnWindowFocus: false });
 
   const usersQuery = trpc.accessControl.list.useQuery(undefined, {
     enabled: isOpen,
@@ -442,7 +445,7 @@ export function UserManagementModal({
     if (!inviteTarget) return;
 
     const chatWindow = window.open("https://chat.google.com/", "_blank", "noopener,noreferrer");
-    const accessUrl = window.location.origin;
+    const accessUrl = meQuery.data?.appUrl || window.location.origin;
     const message = [
       `Olá, ${inviteTarget.name}!`,
       "",
@@ -450,7 +453,9 @@ export function UserManagementModal({
       `E-mail autorizado: ${inviteTarget.email}`,
       `Acesse o sistema: ${accessUrl}`,
       "",
-      "Entre usando o botão ‘Entrar com Google SSO’ e selecione esse e-mail na conta Google.",
+      IS_GAS
+        ? "Abra o link com a sua conta Google @vena.app.br (a mesma do e-mail autorizado)."
+        : "Entre usando o botão ‘Entrar com Google SSO’ e selecione esse e-mail na conta Google.",
     ].join("\n");
 
     try {

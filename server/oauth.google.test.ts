@@ -27,6 +27,21 @@ describe("Google OAuth conforme a especificação", () => {
     expect(isAllowedGoogleRedirectUri("https://santa-barbed-glorious.ngrok-free.dev/api/auth/google/callback/")).toBe(false);
   });
 
+  it("aceita redirects extras definidos pelo operador (GOOGLE_EXTRA_REDIRECT_URIS) e rejeita formatos inseguros", () => {
+    const anterior = process.env.GOOGLE_EXTRA_REDIRECT_URIS;
+    process.env.GOOGLE_EXTRA_REDIRECT_URIS =
+      "https://indicadores-abc-uw.a.run.app/api/auth/google/callback, http://exemplo.com/api/auth/google/callback, https://x.com/outro/caminho";
+    try {
+      expect(isAllowedGoogleRedirectUri("https://indicadores-abc-uw.a.run.app/api/auth/google/callback")).toBe(true);
+      expect(isAllowedGoogleRedirectUri("http://exemplo.com/api/auth/google/callback")).toBe(false);
+      expect(isAllowedGoogleRedirectUri("https://x.com/outro/caminho")).toBe(false);
+    } finally {
+      if (anterior === undefined) delete process.env.GOOGLE_EXTRA_REDIRECT_URIS;
+      else process.env.GOOGLE_EXTRA_REDIRECT_URIS = anterior;
+    }
+    expect(isAllowedGoogleRedirectUri("https://indicadores-abc-uw.a.run.app/api/auth/google/callback")).toBe(false);
+  });
+
   it("gera um par PKCE válido", async () => {
     const first = createPkcePair();
     const second = createPkcePair();

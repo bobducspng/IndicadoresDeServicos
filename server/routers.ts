@@ -31,6 +31,8 @@ export const appRouter = router({
         allowedServices: parsedAllowedServices,
         isAllowed: Boolean(allowed && allowed.isActive === 1),
         lastSignedIn: ctx.user.lastSignedIn,
+        /** Só preenchido no build do Google Apps Script (link do Web App). */
+        appUrl: null as string | null,
       };
     }),
     logout: publicProcedure.mutation(({ ctx }) => {
