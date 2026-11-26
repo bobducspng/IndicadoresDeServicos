@@ -260,6 +260,19 @@ function latestDateFromRows(rows: SheetRow[], fields: string[]): Date | null {
   return dates.length ? new Date(Math.max(...dates.map((date) => date.getTime()))) : null;
 }
 
+// Data de referencia (corte) do painel: a maior entre o ultimo fato registrado e HOJE.
+// Sem isso, o estoque de "Clientes ativos" ficava preso na data do ultimo fato.
+function todayUtc(): Date {
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
+}
+
+function referenceDate(rows: SheetRow[], fields: string[]): Date {
+  const lastFact = latestDateFromRows(rows, fields);
+  const today = todayUtc();
+  return lastFact && lastFact > today ? lastFact : today;
+}
+
 function startOfMonth(date: Date): Date {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
@@ -760,7 +773,7 @@ export function buildClientOptions(data: DashboardSheets): string[] {
  */
 export function buildActiveClientNames(data: DashboardSheets): Set<string> {
   const allRows = [...data.fatos, ...data.baseMensal, ...data.vigencia];
-  const latestDate = latestDateFromRows(allRows, ["Data", "Ano-Mês"]) ?? new Date();
+  const latestDate = referenceDate(allRows, ["Data", "Ano-Mês"]);
   const ativos = new Set<string>();
   data.vigencia.forEach((row) => {
     const key = normalize(row["Cliente"]);
@@ -850,7 +863,7 @@ export function deriveClientDetail(data: DashboardSheets, client: string): Clien
 }
 
 export function buildFilterOptions(data: DashboardSheets): FilterOptions {
-  const latest = latestDateFromRows([...data.fatos, ...data.baseMensal, ...data.vigencia], ["Data", "Ano-Mês", "Fim"]) ?? new Date();
+  const latest = referenceDate([...data.fatos, ...data.baseMensal, ...data.vigencia], ["Data", "Ano-Mês"]);
   return {
     regions: uniqueValues([...data.fatos, ...data.vigencia], ["Região"]),
     services: serviceFilterValues([...data.fatos, ...data.vigencia]),
@@ -885,7 +898,7 @@ export function filterDataByAllowedServices(data: DashboardSheets, allowedServic
 
 export function deriveSnapshot(data: DashboardSheets, filters: FilterState): DashboardSnapshot {
   const allRows = [...data.fatos, ...data.baseMensal, ...data.vigencia];
-  const latestDate = latestDateFromRows(allRows, ["Data", "Ano-Mês"]) ?? new Date();
+  const latestDate = referenceDate(allRows, ["Data", "Ano-Mês"]);
   const anchorDate = anchorDateForYear(allRows, filters.year, latestDate);
   const range = periodRange(anchorDate, filters.period);
   const fatos = data.fatos.filter((row) => selectionMatches(row, filters) && dateInside(row["Data"], range.start, range.end));

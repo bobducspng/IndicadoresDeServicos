@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, afterAll, beforeAll, vi } from "vitest";
 import { buildActiveClientNames, buildActiveCnpjRows, buildClientOptions, DEFAULT_FILTERS, deriveClientDetail, deriveSnapshot, PERIOD_OPTIONS } from "../client/src/lib/dashboard";
 import type { FilterState } from "../client/src/lib/dashboard";
 import type { DashboardSheets } from "../client/src/lib/sheets";
@@ -12,6 +12,16 @@ function sheetsFrom(rows: Array<Record<string, string>>, historicoServicos: Arra
     historicoServicos,
   };
 }
+
+// A data de corte do painel agora considera "hoje". Fixamos o relogio (so Date) numa data
+// antiga para que o ultimo fato dos dados de exemplo continue sendo a data de corte.
+beforeAll(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2020-01-01T00:00:00Z"));
+});
+afterAll(() => {
+  vi.useRealTimers();
+});
 
 describe("deriveClientDetail", () => {
   it("marca como Encerrado o serviço com data fim no recorte de referência", () => {
