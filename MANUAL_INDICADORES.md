@@ -1,8 +1,8 @@
 # Manual de Indicadores e Gráficos
 
 **Projeto:** Indicadores de Serviços  
-**Versão do manual:** 3.9
-**Atualizado em:** 09/10/2026
+**Versão do manual:** 4.0
+**Atualizado em:** 26/11/2026
 **Responsável:** Manus AI
 
 ## 1. Objetivo
@@ -71,7 +71,7 @@ Os meses sem registros continuam presentes na **Linha do Tempo** com zero contra
 | Comparativo | Só é exibido quando o filtro `Ano` está selecionado; compara o total com o mesmo recorte de período do ano anterior. |
 | Exibição | Total de clientes. O percentual de variação anual aparece somente com ano de referência definido. Novos e cancelados aparecem exclusivamente nos painéis de movimentação, separados do estoque ativo. |
 O cálculo não soma CNPJs. Um cliente com vários CNPJs ou serviços é contado uma única vez.
-**Importante:** `Clientes ativos` é um estoque de clientes únicos vigentes na data de corte do recorte. `Clientes novos` e `Clientes cancelados` são fluxos de movimentação do período; portanto, seus totais não devem ser somados ao estoque ativo.
+**Importante:** `Clientes ativos` é um estoque de clientes únicos vigentes na data de corte do recorte. As listas `Entradas no período` e `Saídas no período` são fluxos de movimentação do período; portanto, seus totais não devem ser somados ao estoque ativo.
 
 ### 5.2 CNPJs em operação
 
@@ -115,49 +115,62 @@ As duas listas herdam os filtros de **Segmento**, **Marca / clube**, **Serviços
 
 ## 6. Catálogo de gráficos e listas
 
-### 6.1 Clientes novos
+### 6.1 Entradas no período (clientes novos e expansões)
 
 | Item | Descrição |
 |---|---|
 | Aba principal | `Fatos Movimentacao` |
 | Aba de fallback | `Vigência CNPJ x Serviço`, usada quando o App Script atualiza o contrato antes de criar o fato de movimentação. |
 | Campos | `Cliente`, `Data`, `Evento Cliente`, `Tipo Movimentação`, `Serviço`, `Clube`, `Marca`, `Região`; no fallback, `Início` substitui `Data`. |
-| Granularidade | Cliente único. |
-| Regra de inclusão | Inclui registros com `Evento Cliente = NOVO CLIENTE`, `Tipo Movimentação = AQUISICAO` ou `Tipo Movimentação = EXPANSAO`. Também inclui contratos da vigência cujo `Início` está dentro do período quando o fato de movimentação ainda não chegou. |
+| Granularidade | Cliente único, uma linha por cliente. |
+| Etiquetas | **Novo cliente**: `Evento Cliente = NOVO CLIENTE`. **Expansão**: `Tipo Movimentação = EXPANSAO` de um cliente que já existia. |
+| Prioridade | Se o mesmo cliente tem as duas situações no período, vale **Novo cliente**; dentro da mesma etiqueta, vale a movimentação mais recente. |
+| Fallback | Contratos da vigência cujo `Início` está no período entram como **Novo cliente** somente quando o primeiro serviço do cliente (menor `Início` em toda a vigência) começou dentro do período e o fato ainda não chegou. Contrato de cliente que já existia não entra aqui. |
 | Data exibida | `Data` da movimentação; no fallback, `Início` do contrato. |
 | Ordenação | Mais recente para mais antigo. |
 | Detalhe | Combina `Clube` ou `Marca` disponível com `Serviço`. |
 | Filtros | Segmento, marca/clube, serviço, ano e período. |
+| Interação | Chips acima da lista (`Todos`, `Novo cliente`, `Expansão`) mostram a contagem de cada etiqueta e filtram a lista ao clicar. |
 
-A lista mantém uma única entrada por cliente e conserva a contratação mais recente encontrada dentro do recorte. Se o mesmo cliente existir nas duas abas, a data mais recente entre `Data` e `Início` prevalece. Essa regra cobre o intervalo de sincronização em que uma contratação recém-assinada já está na vigência, mas ainda não foi registrada em `Fatos Movimentacao`.
+O título do painel (`Entradas no período · N clientes`) é a soma das duas etiquetas. Expansão não é cliente novo: é um cliente que já estava na carteira e contratou um serviço adicional. `AQUISICAO` sem o evento `NOVO CLIENTE` (serviços extras contratados junto com o cliente novo) não gera linha própria na lista; esses serviços aparecem apenas na Linha do tempo.
 
-### 6.2 Clientes cancelados
+Exemplo de conferência (31/05/2026 a 17/11/2026): 44 clientes = 26 novos + 18 expansões.
+
+### 6.2 Saídas no período (cancelamentos totais e parciais)
 
 | Item | Descrição |
 |---|---|
 | Aba | `Fatos Movimentacao` |
 | Campos | `Cliente`, `Data`, `Evento Cliente`, `Tipo Movimentação`, `Serviço`, `Clube`, `Região` |
-| Granularidade | Cliente único. |
-| Regra de inclusão | Inclui `Evento Cliente = CLIENTE PERDIDO` ou valores de `Tipo Movimentação` que contenham `CANCELAMENTO`. |
-| Exceção | Registros dos serviços `Operação Assistida` e `Spot F360` não são tratados como cancelamento quando representam finalização do ciclo; `Spot F360` usa o pipe `302416833`. |
+| Granularidade | Cliente único, uma linha por cliente. |
+| Etiquetas | **Cancelamento total**: `Evento Cliente = CLIENTE PERDIDO` (o cliente saiu da carteira). **Cancelamento parcial**: demais registros cujo `Tipo Movimentação` contém `CANCELAMENTO` (o cliente cancelou parte dos serviços e continua com outros). |
+| Prioridade | Se o mesmo cliente tem as duas situações no período, vale **Cancelamento total**; dentro da mesma etiqueta, vale a movimentação mais recente. |
+| Exceção | Registros dos serviços `Operação Assistida` e `Spot F360` não são cancelamento quando representam finalização do ciclo; `Spot F360` usa o pipe `302416833`. Eles não entram em nenhuma etiqueta. |
 | Data exibida | `Data` da movimentação. |
 | Ordenação | Mais recente para mais antigo. |
 | Filtros | Segmento, marca/clube, serviço, ano e período. |
+| Interação | Chips acima da lista (`Todos`, `Cancelamento total`, `Cancelamento parcial`) mostram a contagem de cada etiqueta e filtram a lista ao clicar. |
 
-### 6.3 Linha do tempo de serviços contratados e cancelados
+O título do painel (`Saídas no período · N clientes`) é a soma das duas etiquetas. Apenas o cancelamento total reduz o estoque de `Clientes ativos`; o parcial reduz serviços de um cliente que permanece ativo.
+
+Exemplo de conferência (31/05/2026 a 17/11/2026): 31 clientes = 16 cancelamentos totais + 15 parciais. Nenhum dos 16 totais estava ativo na vigência na data de corte, e os 15 parciais continuavam ativos.
+
+### 6.3 Linha do tempo de serviços movimentados
 
 | Item | Descrição |
 |---|---|
 | Aba | `Fatos Movimentacao` |
 | Campos | `Data`, `Evento Cliente`, `Tipo Movimentação`, `Serviço` |
 | Granularidade | Serviço movimentado por mês. |
-| Contratados | Soma registros com `NOVO CLIENTE`, `AQUISICAO` ou `EXPANSAO`. |
-| Cancelados | Soma registros com `CLIENTE PERDIDO` ou `CANCELAMENTO`, exceto finalizações de `Operação Assistida` e `Spot F360`. |
+| Série 1: Serviços contratados (clientes novos) | Registros com `Tipo Movimentação = AQUISICAO` ou `Evento Cliente = NOVO CLIENTE`. Inclui os serviços extras contratados junto com o cliente novo. |
+| Série 2: Expansões de serviço | Registros com `Tipo Movimentação = EXPANSAO`. |
+| Série 3: Cancelamentos totais | Registros com `CLIENTE PERDIDO` ou cancelamento total, exceto finalizações de `Operação Assistida` e `Spot F360`. |
+| Série 4: Cancelamentos parciais | Registros com `Tipo Movimentação` de cancelamento parcial, exceto `Operação Assistida` e `Spot F360`. |
 | Eixo temporal | Todos os meses entre o início e o fim do período filtrado, inclusive meses sem movimentação. |
-| Interação | Ao passar o mouse, exibe mês, serviços contratados e serviços cancelados. |
-| Visual | Duas curvas suavizadas: verde para contratados e coral/vermelha para cancelados. |
+| Interação | A legenda é clicável e oculta ou exibe cada série (o eixo vertical se ajusta às séries visíveis). Ao passar o mouse, o tooltip mostra mês, novos, expansões, cancelamentos totais e parciais. |
+| Visual | Quatro curvas suavizadas: verde (contratados), azul tracejada (expansões), vermelha (cancelamentos totais) e amarela tracejada (cancelamentos parciais). |
 
-A linha do tempo mede **serviços movimentados**, e não clientes únicos. Por isso, um mesmo cliente pode gerar mais de uma ocorrência no mesmo mês se houver mais de um serviço movimentado.
+A linha do tempo mede **serviços movimentados**, e não clientes únicos. Por isso, um mesmo cliente pode gerar mais de uma ocorrência no mesmo mês, e os totais da linha do tempo não coincidem com os das listas de Entradas e Saídas, que contam clientes.
 
 ### 6.4 Distribuição por serviço
 
@@ -331,9 +344,19 @@ O encerramento de `Operação Assistida` não representa cancelamento. Esse serv
 
 `Spot F360` segue a mesma regra quando o registro pertence ao pipe `302416833` e alcança a etapa `Concluído`: a operação fecha o ciclo, preenche ou reconstrói a data de fim e entra em **Encerrados**. Ela não entra em **Clientes cancelados** nem na série vermelha de cancelamentos. O cálculo reconhece `Concluído`, `Fim previsto`, `Data Desativação`/`Fim` e os campos opcionais de identificação do pipe quando forem disponibilizados pela sincronização.
 
-### 8.3 Contratação, aquisição e expansão
+### 8.3 Contratação, aquisição, expansão e cancelamentos
 
-A aplicação considera `NOVO CLIENTE`, `AQUISICAO` e `EXPANSAO` como entradas de serviço. Essa mesma regra é aplicada à lista de Clientes novos e à Linha do tempo para que os dois componentes permaneçam coerentes.
+Cliente novo, expansão, cancelamento total e cancelamento parcial são situações distintas e aparecem com etiquetas próprias:
+
+| Situação | Regra | Onde aparece |
+|---|---|---|
+| Novo cliente | `Evento Cliente = NOVO CLIENTE` | Lista Entradas (clientes) e série de contratados (serviços). |
+| Aquisição de serviço de cliente novo | `Tipo Movimentação = AQUISICAO` | Série de contratados da Linha do tempo. |
+| Expansão | `Tipo Movimentação = EXPANSAO` | Lista Entradas (clientes) e série de expansões (serviços). |
+| Cancelamento total | `Evento Cliente = CLIENTE PERDIDO` | Lista Saídas (clientes) e série de cancelamentos totais (serviços). |
+| Cancelamento parcial | Demais `Tipo Movimentação` com `CANCELAMENTO` | Lista Saídas (clientes) e série de cancelamentos parciais (serviços). |
+
+`Operação Assistida` e `Spot F360` não geram cancelamento (ver 8.2). A partir da versão 4.0, expansões deixaram de contar como "clientes novos" e cancelamentos parciais deixaram de contar como "clientes cancelados".
 
 ### 8.4 Filtros de período
 
@@ -453,6 +476,7 @@ Para administradores autenticados, o menu lateral esquerdo exibe o botão **Cada
 | 3.5 | 18/09/2026 | Criado o perfil Super Administrador (com exclusividade no botão Fonte Sheets), restrição de novos cadastros ao domínio @vena.app.br mantendo contas pré-existentes, formulário de cadastro vertical sem campo de foto, seletor de serviços padrão dashboard e filtro de perfis unificado. |
 | 3.8 | 08/10/2026 | Removido o gráfico `HISTÓRICO MENSAL · Evolução dos serviços ativos` da página Por Cliente por duplicar informações já apresentadas no painel `Histórico dos serviços`; o cálculo, teste e estilos exclusivos da série mensal também foram removidos. |
 | 3.9 | 09/10/2026 | `Spot F360` passou a seguir a regra de ciclo concluído do pipe `302416833`: etapa `Concluído`/data de fim gera status `Encerrado`, sem contabilizar cancelamento; a reconstrução histórica e os testes foram atualizados. |
+| 4.0 | 26/11/2026 | Entradas e Saídas separadas por etiquetas: `Clientes novos` passou a se chamar `Entradas no período` (etiquetas Novo cliente e Expansão) e `Clientes cancelados` passou a se chamar `Saídas no período` (etiquetas Cancelamento total e Cancelamento parcial), com chips de filtro e contadores. A Linha do tempo passou a ter quatro séries (contratados de clientes novos, expansões, cancelamentos totais e parciais) com legenda clicável. Expansão e cancelamento parcial não contam mais como cliente novo/cancelado. O fallback pela vigência só considera cliente cujo primeiro serviço começou no período. |
 
 ## Referências
 
