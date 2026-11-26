@@ -53,6 +53,7 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
   const [departamentosSel, setDepartamentosSel] = useState<string[]>([]);
   const [filtroAberto, setFiltroAberto] = useState<string | null>(null);
   const [emailCopiado, setEmailCopiado] = useState(false);
+  const [telefoneCopiado, setTelefoneCopiado] = useState(false);
   const filtrosRef = useRef<HTMLDivElement>(null);
   const [aba, setAba] = useState<AbaGrupo>("Todos");
   const [buscaCliente, setBuscaCliente] = useState("");
@@ -197,6 +198,25 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
     }
   };
 
+  const copiarTelefone = async () => {
+    const telefone = selecionado?.telefone;
+    if (!telefone) return;
+    try {
+      await navigator.clipboard.writeText(telefone);
+    } catch {
+      const campo = document.createElement("textarea");
+      campo.value = telefone;
+      campo.style.position = "fixed";
+      campo.style.opacity = "0";
+      document.body.appendChild(campo);
+      campo.select();
+      document.execCommand("copy");
+      document.body.removeChild(campo);
+    }
+    setTelefoneCopiado(true);
+    window.setTimeout(() => setTelefoneCopiado(false), 2000);
+  };
+
   const copiarEmail = async () => {
     if (!selecionado) return;
     try {
@@ -216,6 +236,25 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
     setAba("Todos");
     setBuscaCliente("");
   };
+
+  if (!erro && !payload) {
+    return (
+      <>
+        <div className="page-heading">
+          <div>
+            <div className="page-eyebrow"><span className="status-dot status-dot-blue" /> Recorte por colaborador</div>
+            <h1>Visão por colaborador</h1>
+            <p>Buscando a lista de colaboradores. A tela é liberada assim que ela chegar.</p>
+          </div>
+        </div>
+        <section className="panel collab-loading" role="status" aria-live="polite" aria-busy="true">
+          <span className="collab-spinner" aria-hidden="true" />
+          <h2>Carregando colaboradores…</h2>
+          <p>Aguarde alguns instantes.</p>
+        </section>
+      </>
+    );
+  }
 
   return (
     <>
@@ -259,7 +298,7 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
               </div>
             </div>
             <div className="collab-filters" ref={filtrosRef}>
-              <label className="collab-search"><Search size={14} /><input value={buscaColab} onChange={(e) => setBuscaColab(e.target.value)} placeholder="Buscar nome ou cargo" aria-label="Buscar colaborador" /></label>
+              <label className="collab-search"><Search size={14} /><input value={buscaColab} onChange={(e) => setBuscaColab(e.target.value)} placeholder="Buscar nome ou cargo" aria-label="Buscar colaborador" />{buscaColab && <button type="button" className="clear-filters collab-search-clear" onClick={() => setBuscaColab("")} aria-label="Limpar busca"><X size={14} /> Limpar</button>}</label>
               <MultiSelectFilter
                 filterKey="cliente"
                 label="Cliente"
@@ -352,7 +391,14 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
                       {emailCopiado ? <Check size={13} /> : <Copy size={13} />}
                     </button>
                   </small>
-                  {selecionado.telefone && <small className="collab-phone"><Phone size={12} /> {selecionado.telefone}</small>}
+                  {selecionado.telefone && (
+                    <small className="collab-phone">
+                      <Phone size={12} /> <span>{selecionado.telefone}</span>
+                      <button type="button" className="collab-icon-button" onClick={copiarTelefone} aria-label="Copiar telefone" title={telefoneCopiado ? "Telefone copiado" : "Copiar telefone"}>
+                        {telefoneCopiado ? <Check size={13} /> : <Copy size={13} />}
+                      </button>
+                    </small>
+                  )}
                 </div>
                 <div className="collab-actions">
                   <button type="button" className="collab-chat-button" onClick={chamar}><MessageCircle size={15} /> Chamar no Google Chat</button>
@@ -375,7 +421,7 @@ export function ColaboradorPage({ payload, carregando, erro, indiceClientes, ema
                 })}
               </div>
 
-              <label className="collab-search collab-search-wide"><Search size={14} /><input value={buscaCliente} onChange={(e) => setBuscaCliente(e.target.value)} placeholder="Buscar cliente, marca ou cidade" aria-label="Buscar cliente" /></label>
+              <label className="collab-search collab-search-wide"><Search size={14} /><input value={buscaCliente} onChange={(e) => setBuscaCliente(e.target.value)} placeholder="Buscar cliente, marca ou cidade" aria-label="Buscar cliente" />{buscaCliente && <button type="button" className="clear-filters collab-search-clear" onClick={() => setBuscaCliente("")} aria-label="Limpar busca"><X size={14} /> Limpar</button>}</label>
 
               <div className="collab-clients-head">
                 <span>{carteiraFiltrada.length} de {carteiraBase.length} clientes{uf ? ` em ${uf}` : ""}</span>

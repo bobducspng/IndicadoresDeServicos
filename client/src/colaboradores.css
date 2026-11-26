@@ -32,19 +32,19 @@
 .collab-card small { max-width: 100%; font-size: 10px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .collab-count { margin-top: 4px; padding: 2px 8px; border-radius: 99px; font-size: 10px; font-weight: 700; color: var(--teal); background: color-mix(in srgb, var(--teal) 14%, transparent); }
 
-.collab-avatar { width: 46px; height: 46px; border-radius: 50%; object-fit: cover; flex: none; }
+.collab-avatar { width: 90px; height: 90px; border-radius: 50%; object-fit: cover; flex: none; }
 .collab-avatar-lg { width: 64px; height: 64px; }
-.collab-avatar-fallback { display: inline-grid; place-items: center; font-size: 15px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--blue), var(--violet)); }
+.collab-avatar-fallback { display: inline-grid; place-items: center; font-size: 30px; font-weight: 800; color: #fff; background: linear-gradient(135deg, var(--blue), var(--violet)); }
 .collab-avatar-lg.collab-avatar-fallback { font-size: 20px; }
 
 .collab-profile { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 .collab-profile-info { display: grid; gap: 2px; flex: 1 1 180px; min-width: 0; }
 .collab-profile-info strong { font-size: 15px; }
 .collab-profile-info span, .collab-profile-info small { font-size: 11px; color: var(--muted); overflow-wrap: anywhere; }
-.collab-phone { display: inline-flex; align-items: center; gap: 4px; }
+.collab-phone { display: inline-flex; align-items: center; gap: 6px; }
 .collab-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .collab-chat-button, .collab-ghost-button { display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; border-radius: 9px; font-size: 11px; font-weight: 700; cursor: pointer; }
-.collab-chat-button { color: #fff; background: var(--teal); border: 0; }
+.collab-chat-button { color: #fff; background: #1a73e8; border: 0; }
 .collab-ghost-button { color: var(--ink); background: transparent; border: 1px solid var(--line); }
 .collab-chat-button:hover, .collab-ghost-button:hover { filter: brightness(1.1); }
 .collab-toast { display: flex; gap: 6px; align-items: center; margin-top: 10px; padding: 8px 12px; border-radius: 9px; font-size: 11px; color: var(--teal); background: color-mix(in srgb, var(--teal) 12%, transparent); }
@@ -172,3 +172,14 @@
   background: #0e6e63;
   border-color: #0e6e63;
 }
+
+/* Botao "Limpar" dentro dos campos de busca (mesmo visual dos filtros) */
+.collab-search .clear-filters { flex: none; width: auto; height: 24px; min-height: 0; margin: 0 0 0 auto; padding: 0 9px; font-size: 11px; }
+
+/* Tela de carregamento da lista de colaboradores */
+.collab-loading { display: grid; justify-items: center; gap: 10px; padding: 56px 16px; text-align: center; color: var(--muted); }
+.collab-loading h2 { margin: 0; color: var(--ink); font-size: 16px; }
+.collab-loading p { margin: 0; font-size: 12px; }
+.collab-spinner { width: 34px; height: 34px; border-radius: 50%; border: 3px solid color-mix(in srgb, var(--blue) 25%, transparent); border-top-color: var(--blue); animation: collab-spin 0.9s linear infinite; }
+@keyframes collab-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .collab-spinner { animation-duration: 2.4s; } }
