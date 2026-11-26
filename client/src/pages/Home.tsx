@@ -373,7 +373,7 @@ function MovementList({ title, items, tone, kinds }: { title: string; items: Cli
   return <div className={`movement-list movement-list-${tone}`}>
     <div className="movement-filters">
       <button type="button" className={`movement-chip ${kind === "all" ? "movement-chip-on" : ""}`} onClick={() => setKind("all")}>Todos {items.length}</button>
-      {kinds.map((k) => <button type="button" key={k} className={`movement-chip ${kind === k ? "movement-chip-on" : ""}`} onClick={() => setKind(k)}><span className={`movement-tag movement-tag-${k}`}>{KIND_LABEL[k]}</span> {items.filter((item) => item.kind === k).length}</button>)}
+      {kinds.map((k) => <button type="button" key={k} className={`movement-chip movement-chip-${k} ${kind === k ? "movement-chip-on" : ""}`} onClick={() => setKind(k)}>{KIND_LABEL[k]} {items.filter((item) => item.kind === k).length}</button>)}
     </div>
     <div className="movement-scroll" tabIndex={0} aria-label={title}>
       {visible.length ? visible.map((item, index) => <div className="movement-item" key={`${item.client}-${item.date}`}><span className="movement-index">{index + 1}.</span><div className="movement-copy"><strong title={item.client}>{item.client}</strong><small title={item.detail}>{item.detail}</small></div><div className="movement-right"><span className={`movement-tag movement-tag-${item.kind}`}>{KIND_LABEL[item.kind]}</span><time>{formatMovementDate(item.date)}</time></div></div>) : <div className="movement-empty">Nenhum cliente encontrado no período selecionado.</div>}
