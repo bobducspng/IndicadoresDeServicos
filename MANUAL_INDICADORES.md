@@ -1,7 +1,7 @@
 # Manual de Indicadores e Gráficos
 
 **Projeto:** Indicadores de Serviços  
-**Versão do manual:** 4.0
+**Versão do manual:** 4.1
 **Atualizado em:** 26/11/2026
 **Responsável:** Manus AI
 
@@ -67,7 +67,7 @@ Os meses sem registros continuam presentes na **Linha do Tempo** com zero contra
 | Aba principal | `Vigência CNPJ x Serviço` |
 | Campos | `Cliente`, `Início`, `Fim`, `Situação`, `Região`, `Marca`, `Serviço` |
 | Granularidade | Cliente único, deduplicado pelo campo `Cliente`. |
-| Regra | Considera a carteira vigente na data final do período filtrado. Para um período futuro, sem dados próprios, usa a última data disponível da base como fotografia presente. |
+| Regra | Considera a carteira vigente na data final do período filtrado. Para um período futuro, sem dados próprios, usa a data de corte como fotografia presente. A data de corte é a maior entre o último fato de `Fatos Movimentacao` e a data de hoje, para o estoque acompanhar o dia a dia mesmo sem movimentação nova. |
 | Comparativo | Só é exibido quando o filtro `Ano` está selecionado; compara o total com o mesmo recorte de período do ano anterior. |
 | Exibição | Total de clientes. O percentual de variação anual aparece somente com ano de referência definido. Novos e cancelados aparecem exclusivamente nos painéis de movimentação, separados do estoque ativo. |
 O cálculo não soma CNPJs. Um cliente com vários CNPJs ou serviços é contado uma única vez.
@@ -477,6 +477,7 @@ Para administradores autenticados, o menu lateral esquerdo exibe o botão **Cada
 | 3.8 | 08/10/2026 | Removido o gráfico `HISTÓRICO MENSAL · Evolução dos serviços ativos` da página Por Cliente por duplicar informações já apresentadas no painel `Histórico dos serviços`; o cálculo, teste e estilos exclusivos da série mensal também foram removidos. |
 | 3.9 | 09/10/2026 | `Spot F360` passou a seguir a regra de ciclo concluído do pipe `302416833`: etapa `Concluído`/data de fim gera status `Encerrado`, sem contabilizar cancelamento; a reconstrução histórica e os testes foram atualizados. |
 | 4.0 | 26/11/2026 | Entradas e Saídas separadas por etiquetas: `Clientes novos` passou a se chamar `Entradas no período` (etiquetas Novo cliente e Expansão) e `Clientes cancelados` passou a se chamar `Saídas no período` (etiquetas Cancelamento total e Cancelamento parcial), com chips de filtro e contadores. A Linha do tempo passou a ter quatro séries (contratados de clientes novos, expansões, cancelamentos totais e parciais) com legenda clicável. Expansão e cancelamento parcial não contam mais como cliente novo/cancelado. O fallback pela vigência só considera cliente cujo primeiro serviço começou no período. |
+| 4.1 | 26/11/2026 | Data de corte do painel passou a ser a maior entre o último fato e a data de hoje (antes era só o último fato). `Clientes ativos` e `CNPJs em operação` agora refletem fins de vigência ocorridos depois do último fato, e o texto `dados até` do filtro usa a mesma data. |
 
 ## Referências
 
