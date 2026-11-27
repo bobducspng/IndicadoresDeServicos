@@ -1,0 +1,20 @@
+/* Página Glossário */
+.glossario-panel { display: grid; gap: 12px; }
+.glossario-search { flex: none; min-height: 38px; }
+.glossario-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.glossario-chip { display: inline-flex; align-items: center; gap: 8px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 700; cursor: pointer; transition: color 150ms ease, background 150ms ease, border-color 150ms ease; }
+.glossario-chip span { padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--blue) 16%, transparent); color: var(--ink); font-size: 11px; }
+.glossario-chip:hover { color: var(--ink); border-color: color-mix(in srgb, var(--blue) 50%, var(--line)); }
+.glossario-chip:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.glossario-chip-active { background: var(--blue); border-color: var(--blue); color: #fff; }
+.glossario-chip-active span { background: rgba(255, 255, 255, 0.22); color: #fff; }
+.glossario-count { margin: 0; font-size: 11px; color: var(--muted); }
+.glossario-group { display: grid; gap: 10px; }
+.glossario-group h2 { margin: 6px 0 0; font-size: 13px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.glossario-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 12px; align-items: start; }
+.glossario-card { padding: 14px 16px; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--surface-2) 70%, transparent); }
+.glossario-card h3 { margin: 0 0 10px; font-size: 14px; color: var(--ink); }
+.glossario-card dl { display: grid; gap: 9px; margin: 0; }
+.glossario-card dt { font-size: 10px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.glossario-card dd { margin: 2px 0 0; font-size: 12px; line-height: 1.5; color: var(--ink); overflow-wrap: anywhere; }
+.glossario-obs { padding: 8px 10px; border-left: 3px solid var(--blue); border-radius: 6px; background: color-mix(in srgb, var(--blue) 10%, transparent); }

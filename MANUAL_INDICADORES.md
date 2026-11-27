@@ -1,8 +1,8 @@
 # Manual de Indicadores e Gráficos
 
 **Projeto:** Indicadores de Serviços  
-**Versão do manual:** 4.1
-**Atualizado em:** 26/11/2026
+**Versão do manual:** 4.2
+**Atualizado em:** 27/11/2026
 **Responsável:** Manus AI
 
 ## 1. Objetivo
@@ -310,7 +310,7 @@ A tabela possui rolagem horizontal e vertical conforme o tamanho da carteira do 
 
 Rota `/colaboradores`, item **Por Colaborador** no menu. A página **Por Cliente** tem o botão **Ver por colaborador** e chips com os colaboradores do cliente, que levam para esta tela. Na tela, à esquerda: o quadro **Colaboradores e Prestadores de Serviço** (grade com foto/iniciais e busca por nome, cargo ou departamento) e, abaixo dele, o mapa do Brasil com a carteira do colaborador por UF (clique filtra a lista); à direita, o painel com todos os clientes do colaborador (abas Operacional/Gerencial/Suprimentos/Outros, busca, filtro de UF e "somente clientes ativos"). Clicar em um cliente abre a página Por Cliente. Cada colaborador mostra, no cartão, o número de **clientes** (verde) e de **CNPJs** (laranja). Os CNPJs vêm da aba `Vigência CNPJ x Serviço`: contam-se os CNPJs com vigência **ativa** nos serviços pelos quais o colaborador responde em cada cliente dele (por exemplo, quem responde por BPO Gerencial conta só os CNPJs com BPO Gerencial ativo), sem repetir CNPJ.
 
-**Dados.** Os dados do cliente (UF, cidade, marca, serviços ativos) vêm da aba `Vigência CNPJ x Serviço`. Quem atende cada cliente vem do servidor, pelo endpoint protegido `colaboradores.carteira`, e é ligado ao cliente pelo **nome do cliente**. O servidor aplica as regras de acesso: usuário com serviços restritos só recebe os vínculos desses serviços, e o telefone só vai para administradores.
+**Dados.** Os dados do cliente (UF, cidade, marca, serviços ativos) vêm da aba `Vigência CNPJ x Serviço`. Quem atende cada cliente vem do servidor, pelo endpoint protegido `colaboradores.carteira`, e é ligado ao cliente pelo **nome do cliente**. O servidor aplica as regras de acesso: usuário com serviços restritos só recebe os vínculos desses serviços, e o telefone é visível para todos os usuários autorizados.
 
 **Contrato da API privada** (`COLABORADORES_API_URL` + `COLABORADORES_API_KEY` no `.env` do servidor, Web App do Apps Script que responde `GET ?key=`):
 
@@ -330,7 +330,11 @@ Rota `/colaboradores`, item **Por Colaborador** no menu. A página **Por Cliente
 
 **Fotos dos colaboradores.** A foto exibida segue esta prioridade: (1) foto enviada por um administrador; (2) foto da conta Google do colaborador, guardada automaticamente no login (`users.avatarUrl`; vale também a foto do Cadastro); (3) foto vinda do Pipefy/Apps Script (`fotoUrl`); (4) sem foto, o círculo mostra as iniciais (nome + sobrenome). Para enviar: perfil **administrador**, Por Colaborador, clicar no colaborador e **clicar na foto** do painel à direita; escolher JPG, PNG ou WebP, arrastar para enquadrar, ajustar o zoom e **Salvar foto** (o recorte é quadrado, 256 x 256, exibido em círculo). **Remover foto** apaga somente a foto enviada; o colaborador volta à foto do Google ou às iniciais. As fotos enviadas ficam na tabela `collaborator_photos` (criada pela migração `0005_colaborador_fotos`) e são entregues por `/api/colaboradores/foto`, que exige login. Quem não é administrador vê as fotos, mas não o botão de enviar.
 
-**Google Chat.** O botão copia uma mensagem pronta e abre o Chat. Para abrir a conversa direta, preencher `CHAT_DM_URL_TEMPLATE` em `client/src/lib/colaboradores.ts` (use `{email}`) depois de validar o link no domínio.
+**Contato com o colaborador.** No painel do colaborador há dois botões. **Chamar no Google Chat** (azul, na paleta do Google) copia uma mensagem pronta e abre o Chat. **Chamar no WhatsApp** (verde) abre a conversa com o telefone cadastrado, já com a mesma mensagem, e só aparece quando há um telefone válido. O número é usado só com dígitos e DDI: telefone iniciado por `+` é tratado como internacional; sem `+`, o painel assume Brasil (10 ou 11 dígitos ganham o `55`). Ao lado do e-mail e do telefone há um ícone para copiar o dado. O telefone fica visível para todos os usuários autorizados; ele vem do cadastro e, quando a planilha não o traz, de uma lista privada guardada no Apps Script.
+
+**Limitação conhecida do Google Chat.** O Chat não aceita link com e-mail nem com o ID do usuário para abrir uma conversa direta: o endereço da conversa usa um ID próprio de cada par de pessoas (`#chat/dm/<ID da conversa>`), diferente para cada usuário. Para abrir a conversa direto, o painel precisaria consultar a Chat API com o login do próprio usuário (escopo `chat.spaces.readonly`), o que depende de um OAuth Client ID em um projeto do Google Cloud com a Chat API configurada. Pendente: depende de um OAuth Client ID a ser solicitado à TI; até lá o botão continua copiando a mensagem e abrindo o Chat.
+
+**Carregamento e busca.** Ao abrir a página, enquanto a lista de colaboradores não chega, aparece a tela **Carregando colaboradores…** no lugar de todo o conteúdo, sem nada clicável; quando os dados chegam, a tela normal é liberada. Em caso de erro na busca, a tela de carregamento não é exibida e a mensagem de erro segue como antes. Os campos **Buscar nome ou cargo** e **Buscar cliente, marca ou cidade** mostram o botão **Limpar** (mesmo visual dos filtros) quando há texto digitado.
 
 ## 8. Regras de negócio importantes
 
@@ -401,6 +405,19 @@ Depois, registrar a origem no catálogo usando a tabela abaixo. A entrada deve s
 
 
 
+## 10. Glossário de indicadores
+
+O item **Glossário** do menu lateral esquerdo (rota `/glossario`) explica cada indicador do painel em linguagem simples: o que mede, como é calculado e de onde vêm os dados. Fica visível para **todos os usuários autorizados**, sem restrição de perfil ou de serviços, e não depende da leitura da planilha.
+
+| Item | Descrição |
+|---|---|
+| Organização | Termos agrupados por tela: Indicadores Gerais, Por Cliente, Por Colaborador e Conceitos e regras. Chips no alto filtram por tela e mostram a contagem. |
+| Busca | Ignora acentos e caixa e também encontra sinônimos (por exemplo, `churn` leva a Saídas no período e `retenção` leva ao LTV médio). O botão **Limpar** desfaz a busca. |
+| Conteúdo de cada termo | **O que mede**, **Como é calculado**, **Origem dos dados** e, quando necessário, **Atenção** (cuidado de leitura, como a diferença entre estoque e fluxo). |
+| Código | Textos em `client/src/lib/glossario.ts`; página em `client/src/pages/GlossarioPage.tsx`; estilos em `client/src/glossario.css`; teste em `server/glossario.test.ts`. |
+
+**Regra de manutenção:** o glossário é escrito a partir deste manual. Ao criar ou alterar um indicador, gráfico, filtro ou regra, atualize este manual **e** o termo correspondente em `glossario.ts`. O teste automático garante identificadores únicos, campos obrigatórios preenchidos e a presença dos indicadores principais.
+
 ## 11. Autenticação, controle de acesso e painel administrativo
 
 O painel é protegido por **Google SSO via OAuth do WebDev/Manus**. Antes de carregar os dados da planilha, a aplicação verifica a sessão atual; usuários não autenticados visualizam somente a tela **INDICADORES DE SERVIÇOS** com o botão **Entrar com Google SSO**.
@@ -409,7 +426,7 @@ Depois que a conta Google conclui o login, o callback OAuth normaliza o e-mail e
 
 ### Acesso no Menu Lateral Esquerdo
 
-Para administradores autenticados, o menu lateral esquerdo exibe o botão **Cadastro**, com o mesmo tratamento visual das demais páginas, permitindo abrir o painel diretamente pelo menu.
+Para administradores autenticados, o menu lateral esquerdo exibe o botão **Cadastro**, com o mesmo tratamento visual das demais páginas, permitindo abrir o painel diretamente pelo menu. O item **Glossário** aparece para todos os usuários autorizados, sem restrição de perfil.
 
 ### Funcionalidades do Painel Administrativo
 
@@ -441,6 +458,7 @@ Para administradores autenticados, o menu lateral esquerdo exibe o botão **Cada
 | As exceções de negócio estão registradas? | Sim |
 | A tabela de campos disponíveis continua atualizada? | Sim |
 | A data da alteração foi registrada? | Sim |
+| O termo correspondente foi incluído ou atualizado no Glossário (`client/src/lib/glossario.ts`)? | Sim |
 | O TypeScript e o build foram executados após a alteração? | Sim |
 
 ## 13. Histórico de versões
@@ -478,6 +496,7 @@ Para administradores autenticados, o menu lateral esquerdo exibe o botão **Cada
 | 3.9 | 09/10/2026 | `Spot F360` passou a seguir a regra de ciclo concluído do pipe `302416833`: etapa `Concluído`/data de fim gera status `Encerrado`, sem contabilizar cancelamento; a reconstrução histórica e os testes foram atualizados. |
 | 4.0 | 26/11/2026 | Entradas e Saídas separadas por etiquetas: `Clientes novos` passou a se chamar `Entradas no período` (etiquetas Novo cliente e Expansão) e `Clientes cancelados` passou a se chamar `Saídas no período` (etiquetas Cancelamento total e Cancelamento parcial), com chips de filtro e contadores. A Linha do tempo passou a ter quatro séries (contratados de clientes novos, expansões, cancelamentos totais e parciais) com legenda clicável. Expansão e cancelamento parcial não contam mais como cliente novo/cancelado. O fallback pela vigência só considera cliente cujo primeiro serviço começou no período. |
 | 4.1 | 26/11/2026 | Data de corte do painel passou a ser a maior entre o último fato e a data de hoje (antes era só o último fato). `Clientes ativos` e `CNPJs em operação` agora refletem fins de vigência ocorridos depois do último fato, e o texto `dados até` do filtro usa a mesma data. |
+| 4.2 | 27/11/2026 | Nova página **Glossário** (seção 10), no menu lateral para todos os usuários autorizados. Por Colaborador: telefone visível para todos os usuários autorizados, botão **Chamar no WhatsApp**, ícone para copiar o telefone, tela de carregamento que bloqueia a página até a lista chegar, botão **Limpar** nos campos de busca, fotos maiores nos cartões da lista e botão do Chat na cor azul do Google. Registrada a limitação do link direto do Google Chat. Checklist de atualização passou a incluir o glossário. |
 
 ## Referências
 

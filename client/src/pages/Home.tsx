@@ -36,12 +36,14 @@ import { IS_GAS } from "@/const";
 import { setBrowserPath } from "@/lib/nav";
 import { UserManagementModal } from "@/components/UserManagementModal";
 import { trpc } from "@/lib/trpc";
-import { LogOut, Shield, UserRound } from "lucide-react";
+import { BookOpen, LogOut, Shield, UserRound } from "lucide-react";
 import { ColaboradorPage } from "@/pages/ColaboradorPage";
+import { GlossarioPage } from "@/pages/GlossarioPage";
 import { MultiSelectFilter } from "@/components/MultiSelectFilter";
 import { aplicarDadosDeExemplo, chaveCliente, montarIndiceClientes, type ClienteInfo } from "@/lib/colaboradores";
 import { resolverFuncao, type ColaboradoresPayload } from "@shared/colaboradores";
 import "@/colaboradores.css";
+import "@/glossario.css";
 import { fetchDashboardSheets, getInitialSheets, mergeDashboardSheets, spreadsheetSource, type DashboardSheets } from "@/lib/sheets";
 import {
   DEFAULT_FILTERS,
@@ -150,7 +152,7 @@ function LogoMark({ collapsed }: { collapsed: boolean }) {
 function Sidebar({ collapsed, setCollapsed, view, setView, mobileOpen, onCloseMobile, user, onLogout }: { collapsed: boolean; setCollapsed: (value: boolean) => void; view: DashboardView; setView: (value: DashboardView) => void; mobileOpen: boolean; onCloseMobile: () => void; user: any; onLogout: () => void }) {
   const goTo = (nextView: DashboardView) => {
     setView(nextView);
-    setBrowserPath(nextView === "client" ? "/clientes" : nextView === "collaborator" ? "/colaboradores" : nextView === "access" ? "/cadastro" : "/");
+    setBrowserPath(nextView === "client" ? "/clientes" : nextView === "collaborator" ? "/colaboradores" : nextView === "access" ? "/cadastro" : nextView === "glossary" ? "/glossario" : "/");
     onCloseMobile();
   };
 
@@ -165,6 +167,7 @@ function Sidebar({ collapsed, setCollapsed, view, setView, mobileOpen, onCloseMo
         <button className={`nav-item ${view === "general" ? "nav-item-active" : ""}`} onClick={() => goTo("general")} title="Indicadores Gerais"><BarChart3 size={17} /><span>Indicadores Gerais</span></button>
         <button className={`nav-item ${view === "client" ? "nav-item-active" : ""}`} onClick={() => goTo("client")} title="Por Cliente"><Users size={17} /><span>Por Cliente</span></button>
         <button className={`nav-item ${view === "collaborator" ? "nav-item-active" : ""}`} onClick={() => goTo("collaborator")} title="Por Colaborador"><UserRound size={17} /><span>Por Colaborador</span></button>
+        <button className={`nav-item ${view === "glossary" ? "nav-item-active" : ""}`} onClick={() => goTo("glossary")} title="Glossário"><BookOpen size={17} /><span>Glossário</span></button>
         {(user?.role === "admin" || user?.role === "super_admin") && (
           <button
             type="button"
@@ -239,7 +242,7 @@ function formatSyncDate(value: string): string {
 
 function TopHeader({ onMenu, theme, setTheme, onRefresh, loading, syncLogs, view, userRole }: { onMenu: () => void; theme: "dark" | "light"; setTheme: (value: "dark" | "light") => void; onRefresh: () => void; loading: boolean; syncLogs: SyncLogItem[]; view: DashboardView; userRole?: string }) {
   const [showSyncLog, setShowSyncLog] = useState(false);
-  const breadcrumb = view === "access" ? "Cadastro" : view === "client" ? "Visão por cliente" : view === "collaborator" ? "Visão por colaborador" : "Visão executiva";
+  const breadcrumb = view === "access" ? "Cadastro" : view === "client" ? "Visão por cliente" : view === "collaborator" ? "Visão por colaborador" : view === "glossary" ? "Glossário de indicadores" : "Visão executiva";
   return (
     <header className="top-header">
       <div className="top-header-left">
@@ -581,7 +584,7 @@ export default function Home() {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
-  const [view, setView] = useState<DashboardView>(() => window.location.pathname.includes("clientes") ? "client" : window.location.pathname.includes("colaboradores") ? "collaborator" : window.location.pathname.includes("cadastro") ? "access" : "general");
+  const [view, setView] = useState<DashboardView>(() => window.location.pathname.includes("clientes") ? "client" : window.location.pathname.includes("colaboradores") ? "collaborator" : window.location.pathname.includes("cadastro") ? "access" : window.location.pathname.includes("glossario") ? "glossary" : "general");
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
   const [selectedClient, setSelectedClient] = useState("");
   const [selectedCollaborator, setSelectedCollaborator] = useState("");
@@ -656,7 +659,7 @@ export default function Home() {
     <a className="skip-link" href="#main-content">Pular para o conteúdo principal</a>
     <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} view={view} setView={setView} mobileOpen={mobileNavOpen} onCloseMobile={() => setMobileNavOpen(false)} user={authQuery.data} onLogout={handleLogout} />
     <button type="button" className={`mobile-nav-overlay ${mobileNavOpen ? "mobile-nav-overlay-open" : ""}`} aria-label="Fechar menu lateral" onClick={() => setMobileNavOpen(false)} />
-    <div className="app-main"><TopHeader onMenu={() => { setCollapsed(false); setMobileNavOpen(true); }} theme={theme} setTheme={setTheme} onRefresh={refresh} loading={loading} syncLogs={syncLogs} view={view} userRole={authQuery.data?.role} /><main id="main-content" className="dashboard-main">{syncNotice && <div className="sync-notice" role="status"><CircleAlert size={15} />{syncNotice}</div>}{view === "general" && <FilterBar filters={filters} setFilters={setFilters} options={options} onClear={clearFilters} />}{view === "access" ? ((authQuery.data?.role === "admin" || authQuery.data?.role === "super_admin") ? <UserManagementModal mode="page" isOpen={true} onClose={() => setView("general")} currentUserEmail={authQuery.data?.email} availableServices={options.services} /> : <div className="access-denied-card"><Shield size={24} /><h2>Acesso restrito</h2><p>A página Cadastro está disponível somente para administradores.</p></div>) : loading && !snapshot ? <LoadingState /> : !snapshot && error ? <ErrorState message={error} onRetry={refresh} /> : snapshot ? (view === "general" ? <GeneralPage snapshot={snapshot} /> : view === "collaborator" ? <ColaboradorPage payload={colaboradoresPayload} carregando={carteiraQuery.isLoading} erro={carteiraQuery.error ? "Não foi possível carregar os colaboradores agora." : null} indiceClientes={clientIndex} emailSelecionado={selectedCollaborator} onSelecionar={setSelectedCollaborator} clientesOpcoes={clientOptions} clientesFiltro={collaboratorClientFilter} onClientesFiltro={setCollaboratorClientFilter} onAbrirCliente={abrirClienteDoColaborador} usuarioNome={authQuery.data?.name} ehAdmin={authQuery.data?.role === "admin" || authQuery.data?.role === "super_admin"} /> : <ClientPage detail={clientDetail} clients={clientOptions} activeClients={activeClientNames} selectedClient={selectedClient} onSelectClient={setSelectedClient} responsaveis={responsaveisDoCliente} onAbrirColaborador={abrirColaborador} />) : null}</main><footer className="app-footer"><span><span className="status-dot status-dot-live" /> Dados conectados via Google Sheets</span><span>Indicadores de Serviços · {formatNumber(data?.fatos.length ?? 0)} fatos carregados</span></footer>{loading && <div className="sync-blocker" role="alert" aria-live="polite"><div className="sync-blocker-card"><div className="loading-orbit"><span /><span /><span /></div><strong>{syncLogs.length ? "Atualizando indicadores" : "Conectando à base de indicadores"}</strong><p>{syncLogs.length ? "A navegação ficará bloqueada até a leitura das abas terminar." : "Consultando as abas públicas do Google Sheets."}</p></div></div>}</div>
+    <div className="app-main"><TopHeader onMenu={() => { setCollapsed(false); setMobileNavOpen(true); }} theme={theme} setTheme={setTheme} onRefresh={refresh} loading={loading} syncLogs={syncLogs} view={view} userRole={authQuery.data?.role} /><main id="main-content" className="dashboard-main">{syncNotice && <div className="sync-notice" role="status"><CircleAlert size={15} />{syncNotice}</div>}{view === "general" && <FilterBar filters={filters} setFilters={setFilters} options={options} onClear={clearFilters} />}{view === "glossary" ? <GlossarioPage /> : view === "access" ? ((authQuery.data?.role === "admin" || authQuery.data?.role === "super_admin") ? <UserManagementModal mode="page" isOpen={true} onClose={() => setView("general")} currentUserEmail={authQuery.data?.email} availableServices={options.services} /> : <div className="access-denied-card"><Shield size={24} /><h2>Acesso restrito</h2><p>A página Cadastro está disponível somente para administradores.</p></div>) : loading && !snapshot ? <LoadingState /> : !snapshot && error ? <ErrorState message={error} onRetry={refresh} /> : snapshot ? (view === "general" ? <GeneralPage snapshot={snapshot} /> : view === "collaborator" ? <ColaboradorPage payload={colaboradoresPayload} carregando={carteiraQuery.isLoading} erro={carteiraQuery.error ? "Não foi possível carregar os colaboradores agora." : null} indiceClientes={clientIndex} emailSelecionado={selectedCollaborator} onSelecionar={setSelectedCollaborator} clientesOpcoes={clientOptions} clientesFiltro={collaboratorClientFilter} onClientesFiltro={setCollaboratorClientFilter} onAbrirCliente={abrirClienteDoColaborador} usuarioNome={authQuery.data?.name} ehAdmin={authQuery.data?.role === "admin" || authQuery.data?.role === "super_admin"} /> : <ClientPage detail={clientDetail} clients={clientOptions} activeClients={activeClientNames} selectedClient={selectedClient} onSelectClient={setSelectedClient} responsaveis={responsaveisDoCliente} onAbrirColaborador={abrirColaborador} />) : null}</main><footer className="app-footer"><span><span className="status-dot status-dot-live" /> Dados conectados via Google Sheets</span><span>Indicadores de Serviços · {formatNumber(data?.fatos.length ?? 0)} fatos carregados</span></footer>{loading && <div className="sync-blocker" role="alert" aria-live="polite"><div className="sync-blocker-card"><div className="loading-orbit"><span /><span /><span /></div><strong>{syncLogs.length ? "Atualizando indicadores" : "Conectando à base de indicadores"}</strong><p>{syncLogs.length ? "A navegação ficará bloqueada até a leitura das abas terminar." : "Consultando as abas públicas do Google Sheets."}</p></div></div>}</div>
     </div>
   );
 }
